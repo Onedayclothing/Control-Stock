@@ -214,7 +214,7 @@ app.post('/api/order', async (req, res) => {
 bot.command('AddProduct', (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { step: 'REF', data: {} };
-    ctx.reply('📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី!\n\nសូមផ្ញើ **លេខកូដទំនិញ (Ref)** មក (ឧ. 7):\n*(បើចង់បោះបង់ សូមវាយ /cancel)*', { parse_mode: 'Markdown' });
+    ctx.reply('📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី!\n\nសូមផ្ញើ លេខកូដទំនិញ (Ref) មក (ឧ. 7):\n(បើចង់បោះបង់ សូមវាយ /cancel)');
 });
 
 bot.command('cancel', (ctx) => {
@@ -240,43 +240,43 @@ bot.on('text', async (ctx) => {
         case 'REF':
             state.data.ref = text;
             state.step = 'TITLE';
-            ctx.reply('✍️ សូមបញ្ចូល **ឈ្មោះទំនិញ** (Title):', { parse_mode: 'Markdown' });
+            ctx.reply('✍️ សូមបញ្ចូល ឈ្មោះទំនិញ (Title):');
             break;
 
         case 'TITLE':
             state.data.title_km = text;
             state.step = 'PRICE';
-            ctx.reply('💵 សូមបញ្ចូល **តម្លៃជាដុល្លារ** (ឧ. 15.00):', { parse_mode: 'Markdown' });
+            ctx.reply('💵 សូមបញ្ចូល តម្លៃជាដុល្លារ (ឧ. 15.00):');
             break;
 
         case 'PRICE':
             state.data.price = parseFloat(text) || 0;
             state.step = 'DESC';
-            ctx.reply('📝 សូមសរសេរ **ការបរិយាយ** ពីទំនិញ (Description):', { parse_mode: 'Markdown' });
+            ctx.reply('📝 សូមសរសេរ ការបរិយាយ ពីទំនិញ (Description):');
             break;
 
         case 'DESC':
             state.data.desc_km = text;
             state.step = 'VIDEO';
-            ctx.reply('🎬 សូមផ្ញើ **Link វីដេអូ** (ឧ. videos/your_video.mp4):', { parse_mode: 'Markdown' });
+            ctx.reply('🎬 សូមផ្ញើ Link វីដេអូ (ឧ. videos/your-video.mp4):');
             break;
 
         case 'VIDEO':
             state.data.video_url = text;
             state.step = 'GENDER';
-            ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូលคำថា **men** ឬ **women**):', { parse_mode: 'Markdown' });
+            ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
             break;
 
         case 'GENDER':
             state.data.gender = text.toLowerCase();
             state.step = 'TYPE';
-            ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. **tops** សម្រាប់អាវ, **pants** សម្រាប់ខោ):', { parse_mode: 'Markdown' });
+            ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. tops សម្រាប់អាវ, pants សម្រាប់ខោ):');
             break;
 
         case 'TYPE':
             state.data.type = text.toLowerCase();
             state.step = 'STOCK';
-            ctx.reply('📦 សូមបញ្ជាក់ **ចំនួនស្តុកដើម** សម្រាប់ Size នីមួយៗ (ឧ. 20):', { parse_mode: 'Markdown' });
+            ctx.reply('📦 សូមបញ្ជាក់ ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (ឧ. 20):');
             break;
 
         case 'STOCK':
@@ -296,6 +296,7 @@ bot.on('text', async (ctx) => {
                 );
 
                 let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+                let successMsg = `✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`;
                 for (let size of sizes) {
                     await pool.query(
                         `INSERT INTO stock (ref, size, stock_qty, price) 
@@ -306,7 +307,7 @@ bot.on('text', async (ctx) => {
                     );
                 }
 
-                ctx.reply(`✅ **ជោគជ័យ!** ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែមចូលប្រព័ន្ធ និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`, { parse_mode: 'Markdown' });
+                ctx.reply(successMsg);
             } catch (err) {
                 ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
             }
