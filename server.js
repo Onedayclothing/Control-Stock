@@ -106,7 +106,7 @@ app.get('/api/products', async (req, res) => {
             FROM products p
             LEFT JOIN stock s ON p.ref = s.ref
             GROUP BY p.ref
-            ORDER BY p.ref;
+            ORDER BY CAST(p.ref AS INTEGER) ASC;
         `;
         let result = await pool.query(query);
         res.json(result.rows);
@@ -117,7 +117,7 @@ app.get('/api/products', async (req, res) => {
 
 app.get('/api/stock', async (req, res) => {
     try {
-        let result = await pool.query("SELECT * FROM stock ORDER BY ref, size");
+        let result = await pool.query("SELECT * FROM stock ORDER BY CAST(ref AS INTEGER) ASC, size");
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -218,7 +218,6 @@ app.post('/api/order', async (req, res) => {
 bot.command('AddProduct', async (ctx) => {
     const chatId = ctx.chat.id;
     
-    // Auto Generate Ref (រកលេខ Ref បន្ទាប់ស្វ័យប្រវត្តិ)
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -245,7 +244,7 @@ bot.command('cancel', (ctx) => {
     }
 });
 
-// មុខងារលុបទំនិញតាមរយៈ Telegram ឧ. /DeleteRef7
+// មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (Auto-Shift)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -260,10 +259,25 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
         }
 
+        let deletedNum = parseInt(cleanRef);
+
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
-        ctx.reply(`🗑️ ជោគជ័យ! ទំនិញ Ref ${cleanRef} និងស្តុកពាក់ព័ន្ធត្រូវបានលុបចេញពីប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        if (!isNaN(deletedNum)) {
+            let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
+            
+            for (let row of allProds.rows) {
+                let currentNum = parseInt(row.ref);
+                if (!isNaN(currentNum) && currentNum > deletedNum) {
+                    let newNum = currentNum - 1;
+                    await pool.query("UPDATE products SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
+                    await pool.query("UPDATE stock SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
+                }
+            }
+        }
+
+        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
     } catch (err) {
         ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
     }
@@ -338,14 +352,14 @@ bot.on('message', async (ctx) => {
 
     switch (state.step) {
         case 'TITLE':
-            if (!text.trim()) return ctx.reply('⚠️ សូមសរសេរ : បញ្ចូលឈ្មោះទំនិញ');
+            if (!text.trim()) return ctx.reply('⚠️ សរសេរ : បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
             state.step = 'PRICE';
             return ctx.reply('សរសេរ : បញ្ចូលតម្លៃទំនិញ');
 
         case 'PRICE':
             let price = parseFloat(text);
-            if (isNaN(price)) return ctx.reply('⚠️ សូមសរសេរ : បញ្ចូលតម្លៃទំនិញ (ជាតួលេខ ឧ. 15.00)');
+            if (isNaN(price)) return ctx.reply('⚠️ សរសេរ : បញ្ចូលតម្លៃទំនិញ (ជាតួលេខ ឧ. 15.00)');
             state.data.price = price;
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ !');
