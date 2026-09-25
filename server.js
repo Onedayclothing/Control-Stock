@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { Telegraf } = require('telegraf');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -21,10 +23,15 @@ const bot = new Telegraf(BOT_TOKEN);
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
+// បង្កើត Folder videos បើមិនទាន់មាន
+const videoDir = path.join(__dirname, 'videos');
+if (!fs.existsSync(videoDir)) {
+    fs.mkdirSync(videoDir, { recursive: true });
+}
+
 // បង្កើត Table ស្តុក និង ផលិតផលស្វ័យប្រវត្តិពេលចាប់ផ្តើម Server
 async function initDB() {
     try {
-        // 1. បង្កើត Table Products (សម្រាប់ព័ត៌មានទំនិញ)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS products (
                 ref VARCHAR(50) PRIMARY KEY,
@@ -37,7 +44,6 @@ async function initDB() {
             );
         `);
 
-        // 2. បង្កើត Table Stock (សម្រាប់ចំនួនស្តុកតាម Size)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
@@ -49,7 +55,6 @@ async function initDB() {
             );
         `);
         
-        // បញ្ចូលទិន្នន័យផលិតផលដើម (Products) បើ Database ទទេ
         let checkProd = await pool.query("SELECT COUNT(*) FROM products");
         if (parseInt(checkProd.rows[0].count) === 0) {
             const initialProducts = [
@@ -68,7 +73,6 @@ async function initDB() {
             }
         }
 
-        // បញ្ចូលទិន្នន័យស្តុកដើម (Stock) បើ Database ទទេ
         let checkStock = await pool.query("SELECT COUNT(*) FROM stock");
         if (parseInt(checkStock.rows[0].count) === 0) {
             const initialData = [
@@ -185,11 +189,11 @@ app.post('/api/order', async (req, res) => {
                 if (currentStock < item.qty) {
                     return res.json({ 
                         success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ស្តុកមិនគ្រប់គ្រាន់ទេ (សល់ក្នុងស្តុក: ${currentStock})!` 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ស្តុកមិនគ្រប់គ្រាន់ទេ!` 
                     });
                 }
             } else {
-                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ក្នុងប្រព័ន្ធឡើយ!` });
+                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
             }
         }
 
@@ -221,12 +225,42 @@ bot.command('cancel', (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការបន្ថែមទំនិញរួចរាល់។ សូមវាយ /AddProduct ម្តងទៀតដើម្បីចាប់ផ្តើមសារថ្មី។');
+        ctx.reply('❌ បានលុបចោលដំណើរការបន្ថែមទំនិញរួចរាល់。');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
 });
 
+// ចាប់យកហ្វាលវីដេអូដែល Admin Upload ផ្ទាល់ក្នុងជំហាន VIDEO
+bot.on('video', async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId] || userStates[chatId].step !== 'VIDEO') return;
+
+    let state = userStates[chatId];
+    await ctx.sendChatAction('typing');
+
+    try {
+        const video = ctx.message.video;
+        const fileId = video.file_id;
+        const fileLink = await ctx.telegram.getFileLink(fileId);
+
+        // Download វីដេអូពី Telegram មកកាន់ Server ក្នុង Folder videos/
+        const response = await fetch(fileLink.href);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        
+        const fileName = `vid_${Date.now()}.mp4`;
+        const filePath = path.join(videoDir, fileName);
+        fs.writeFileSync(filePath, buffer);
+
+        state.data.video_url = `videos/${fileName}`;
+        state.step = 'GENDER';
+        ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
+    } catch (err) {
+        ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}`);
+    }
+});
+
+// ស្តាប់សារអត្ថបទតាមជំហាននីមួយៗ
 bot.on('text', async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text.trim();
@@ -258,10 +292,11 @@ bot.on('text', async (ctx) => {
         case 'DESC':
             state.data.desc_km = text;
             state.step = 'VIDEO';
-            ctx.reply('🎬 សូមផ្ញើ Link វីដេអូ (ឧ. videos/your-video.mp4):');
+            ctx.reply('🎬 សូម Upload ឬផ្ញើហ្វាលវីដេអូរបស់អ្នកមកទីនេះ مباشرة:');
             break;
 
         case 'VIDEO':
+            // ករណី Admin វាយបញ្ចូលเป็น Link ជំនួសការ Upload
             state.data.video_url = text;
             state.step = 'GENDER';
             ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
@@ -296,7 +331,6 @@ bot.on('text', async (ctx) => {
                 );
 
                 let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
-                let successMsg = `✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`;
                 for (let size of sizes) {
                     await pool.query(
                         `INSERT INTO stock (ref, size, stock_qty, price) 
@@ -307,7 +341,7 @@ bot.on('text', async (ctx) => {
                     );
                 }
 
-                ctx.reply(successMsg);
+                ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`);
             } catch (err) {
                 ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
             }
