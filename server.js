@@ -214,7 +214,7 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// --- TELEGRAM BOT CHAT FLOW (/AddProduct & /cancel) ---
+// --- TELEGRAM BOT COMMANDS & CHAT FLOW ---
 bot.command('AddProduct', (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { step: 'REF', data: {} };
@@ -225,10 +225,24 @@ bot.command('cancel', (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការបន្ថែមទំនិញរួចរាល់。');
+        ctx.reply('❌ បានលុបចោលដំណើរការបន្ថែមទំនិញរួចរាល់។');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
+});
+
+// បង្កើតពាក្យបញ្ជា /admin ដើម្បីបើក Admin Mini App ក្នុង Telegram ផ្ទាល់យ៉ាងស្រួល
+bot.command('admin', (ctx) => {
+    ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ 
+                    text: '📂 បើក Admin Mini App', 
+                    web_app: { url: 'https://control-stock-production-a855.up.railway.app/admin.html' } 
+                }]
+            ]
+        }
+    });
 });
 
 // Unified Message Handler (គ្រប់គ្រងទាំង Text និង Video Upload រួមជាមួយ Railway Full URL)
