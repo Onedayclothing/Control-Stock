@@ -144,7 +144,7 @@ app.post('/api/admin/add-product', async (req, res) => {
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
-        let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 10;
+        let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 0;
 
         await pool.query(
             `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
@@ -215,10 +215,24 @@ app.post('/api/order', async (req, res) => {
 });
 
 // --- TELEGRAM BOT COMMANDS & CHAT FLOW ---
-bot.command('AddProduct', (ctx) => {
+bot.command('AddProduct', async (ctx) => {
     const chatId = ctx.chat.id;
-    userStates[chatId] = { step: 'REF', data: {} };
-    ctx.reply('📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី!\n\nសូមផ្ញើ លេខកូដទំនិញ (Ref) មក (ឧ. 7):\n(បើចង់បោះបង់ សូមវាយ /cancel)');
+    
+    // Auto Generate Ref (រកលេខ Ref បន្ទាប់ស្វ័យប្រវត្តិ)
+    try {
+        let prodRes = await pool.query("SELECT ref FROM products");
+        let maxRef = 0;
+        prodRes.rows.forEach(r => {
+            let num = parseInt(r.ref);
+            if (!isNaN(num) && num > maxRef) maxRef = num;
+        });
+        let nextRef = String(maxRef + 1);
+
+        userStates[chatId] = { step: 'TITLE', data: { ref: nextRef } };
+        ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref  অটো: ${nextRef})\n\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+    }
 });
 
 bot.command('cancel', (ctx) => {
@@ -231,7 +245,7 @@ bot.command('cancel', (ctx) => {
     }
 });
 
-// មុខងារថ្មី៖ លុបទំនិញតាមរយៈ Telegram ឧ. /DeleteRef7 ឬ /deleteref7
+// មុខងារលុបទំនិញតាមរយៈ Telegram ឧ. /DeleteRef7
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -246,7 +260,6 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
         }
 
-        // លុបស្តុក ਅਤੇផលិតផលចេញពី Database
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
@@ -256,7 +269,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
-// បង្កើតពាក្យបញ្ជា /admin ដើម្បីបើក Admin Mini App ក្នុង Telegram ផ្ទាល់
+// បង្កើតពាក្យបញ្ជា /admin
 bot.command('admin', (ctx) => {
     ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
         reply_markup: {
@@ -270,7 +283,48 @@ bot.command('admin', (ctx) => {
     });
 });
 
-// Unified Message Handler (គ្រប់គ្រងទាំង Text និង Video Upload រួមជាមួយ Railway Full URL)
+// Handle Button Click for Gender Selection
+bot.action(/^gender_(.+)$/, async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId] || userStates[chatId].step !== 'GENDER') return;
+
+    let gender = ctx.match[1];
+    userStates[chatId].data.gender = gender;
+    userStates[chatId].step = 'TYPE';
+
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`🚻 ប្រភេទភេទដែលបានជ្រើសរើស: ${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}`);
+    await ctx.reply('សូមបញ្ជាក់ប្រភេទ (សូមជ្រើសរើសប៊ូតុងខាងក្រោម):', {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Tops (អាវ)', callback_data: 'type_tops' },
+                    { text: 'Pants (ខោ)', callback_data: 'type_pants' }
+                ],
+                [
+                    { text: 'Outerwear', callback_data: 'type_outerwear' },
+                    { text: 'Dresses', callback_data: 'type_dresses' }
+                ]
+            ]
+        }
+    });
+});
+
+// Handle Button Click for Type Selection
+bot.action(/^type_(.+)$/, async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
+
+    let type = ctx.match[1];
+    userStates[chatId].data.type = type;
+    userStates[chatId].step = 'STOCK';
+
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`🏷️ ប្រភេទដែលបានជ្រើសរើស: ${type}`);
+    await ctx.reply('សូមបញ្ជាក់ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (Auto Default is 0):');
+});
+
+// Unified Message Handler (គ្រប់គ្រង Text និង Video Upload)
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId]) return;
@@ -283,29 +337,23 @@ bot.on('message', async (ctx) => {
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
     switch (state.step) {
-        case 'REF':
-            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលលេខកូដទំនិញ (Ref) ជាអត្ថបទ!');
-            state.data.ref = text.trim();
-            state.step = 'TITLE';
-            return ctx.reply('✍️ សូមបញ្ចូល ឈ្មោះទំនិញ (Title):');
-
         case 'TITLE':
-            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះទំនិញជាអត្ថបទ!');
+            if (!text.trim()) return ctx.reply('⚠️ សូមសរសេរ : បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
             state.step = 'PRICE';
-            return ctx.reply('💵 សូមបញ្ចូល តម្លៃជាដុល្លារ (ឧ. 15.00):');
+            return ctx.reply('សរសេរ : បញ្ចូលតម្លៃទំនិញ');
 
         case 'PRICE':
             let price = parseFloat(text);
-            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខឱ្យបានត្រឹមត្រូវ (ឧ. 15.00):');
+            if (isNaN(price)) return ctx.reply('⚠️ សូមសរសេរ : បញ្ចូលតម្លៃទំនិញ (ជាតួលេខ ឧ. 15.00)');
             state.data.price = price;
             state.step = 'DESC';
-            return ctx.reply('📝 សូមសរសេរ ការបរិយាយ ពីទំនិញ (Description):');
+            return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ !');
 
         case 'DESC':
             state.data.desc_km = text.trim();
             state.step = 'VIDEO';
-            return ctx.reply('🎬 សូម Upload ហ្វាលវីដេអូ ឬផ្ញើ Link វីដេអូរបស់អ្នកមកទីនេះ:');
+            return ctx.reply('សុំ Upload Video');
 
         case 'VIDEO':
             let videoUrl = '';
@@ -325,41 +373,36 @@ bot.on('message', async (ctx) => {
 
                     videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
                 } catch (err) {
-                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សូមព្យាយាមផ្ញើវីដេអូសារថ្មី។`);
+                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
             } else if (text.trim()) {
                 let inputUrl = text.trim();
                 videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
             } else {
-                return ctx.reply('⚠️ សូម Upload ហ្វាលវីដេអូ ឬផ្ញើ Link វីដេអូឱ្យបានត្រឹមត្រូវ!');
+                return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
 
             state.data.video_url = videoUrl;
             state.step = 'GENDER';
-            return ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
-
-        case 'GENDER':
-            let gender = text.trim().toLowerCase();
-            if (gender !== 'men' && gender !== 'women') return ctx.reply('⚠️ សូមបញ្ចូលពាក្យ men ឬ women ឱ្យបានត្រឹមត្រូវ!');
-            state.data.gender = gender;
-            state.step = 'TYPE';
-            return ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. tops សម្រាប់អាវ, pants សម្រាប់ខោ):');
-
-        case 'TYPE':
-            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ជាក់ប្រភេទជាអត្ថបទ (ឧ. tops):');
-            state.data.type = text.trim().toLowerCase();
-            state.step = 'STOCK';
-            return ctx.reply('📦 សូមបញ្ជាក់ ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (ឧ. 20):');
+            return ctx.reply('ជ្រើសរើសប្រភេទ ភេទ:', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: 'Men (បុរស)', callback_data: 'gender_men' },
+                            { text: 'Women (នារី)', callback_data: 'gender_women' }
+                        ]
+                    ]
+                }
+            });
 
         case 'STOCK':
             let stock = parseInt(text);
-            if (isNaN(stock)) return ctx.reply('⚠️ សូមបញ្ចូលចំនួនស្តុកជាតួលេខ (ឧ. 20):');
-            state.data.initial_stock = stock;
+            let defaultQty = isNaN(stock) ? 0 : stock;
+            state.data.initial_stock = defaultQty;
             
             try {
-                let cleanRef = String(state.data.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
+                let cleanRef = String(state.data.ref).trim().toUpperCase();
                 let parsedPrice = parseFloat(state.data.price) || 0;
-                let defaultQty = state.data.initial_stock;
 
                 await pool.query(
                     `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
@@ -380,7 +423,7 @@ bot.on('message', async (ctx) => {
                     );
                 }
 
-                await ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញវីដេអូនោះភ្លាមៗ។`);
+                await ctx.reply('សំណើរបានជោគជ័យ 📦');
             } catch (err) {
                 await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
             }
