@@ -129,6 +129,41 @@ app.post('/api/admin/update-stock', async (req, res) => {
     }
 });
 
+// API: បន្ថែមទំនិញថ្មីពី Telegram Bot
+app.post('/api/admin/add-product', async (req, res) => {
+    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
+    try {
+        let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
+        let parsedPrice = parseFloat(price) || 0;
+        let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 10;
+
+        // 1. បញ្ចូល ឬអាប់ដេតព័ត៌មានទំនិញក្នុង Table products
+        await pool.query(
+            `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+             ON CONFLICT (ref) DO UPDATE 
+             SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
+            [cleanRef, title_km, desc_km || '', gender || 'men', type || 'tops', video_url || '', parsedPrice]
+        );
+
+        // 2. បង្កើតស្តុកស្វ័យប្រវត្តិសម្រាប់ Size ទាំង 5 (S, M, L, XL, XXL)
+        let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+        for (let size of sizes) {
+            await pool.query(
+                `INSERT INTO stock (ref, size, stock_qty, price) 
+                 VALUES ($1, $2, $3, $4) 
+                 ON CONFLICT (ref, size) DO UPDATE 
+                 SET price = $4`,
+                [cleanRef, size, defaultQty, parsedPrice]
+            );
+        }
+
+        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុកជោគជ័យ!` });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // API: កុម្មង់ទំនិញ និងកាត់ស្តុកស្វ័យប្រវត្តិ
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
