@@ -8,7 +8,13 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { background: #0f172a; color: #f8fafc; font-family: 'Kantumruy Pro', sans-serif; padding: 15px; margin: 0; }
-        h1 { font-size: 18px; text-align: center; margin-bottom: 15px; color: #38bdf8; }
+        h1 { font-size: 18px; text-align: center; margin-bottom: 12px; color: #38bdf8; }
+        
+        /* Search Bar Style */
+        .search-box { margin-bottom: 15px; }
+        .search-input { width: 100%; padding: 10px 14px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: white; font-size: 14px; outline: none; font-family: 'Kantumruy Pro', sans-serif; box-sizing: border-box; }
+        .search-input:focus { border-color: #0284c7; }
+
         .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
         .prod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .info { font-size: 13px; font-weight: 700; color: #f8fafc; }
@@ -19,12 +25,18 @@
         .stock-control { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #334155; padding-top: 8px; }
         .controls { display: flex; align-items: center; gap: 6px; }
         button.qty-btn { background: #0284c7; color: white; border: none; width: 32px; height: 32px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
-        input { width: 60px; text-align: center; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 6px; padding: 6px; font-weight: bold; font-size: 14px; }
+        input.qty-input { width: 60px; text-align: center; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 6px; padding: 6px; font-weight: bold; font-size: 14px; }
         .loading { text-align: center; color: #94a3b8; margin-top: 30px; font-size: 13px; }
     </style>
 </head>
 <body>
     <h1>📦 Oneday Stock Controller</h1>
+    
+    <!-- Search Bar -->
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 ស្វែងរកតាមឈ្មោះ ឬ Ref (ឧ. 1, Polo...)" oninput="filterStockList()">
+    </div>
+
     <div id="stockList" class="loading">កំពុងទាញយកទិន្នន័យទំនិញ...</div>
 
     <script>
@@ -33,24 +45,29 @@
         }
 
         let productsData = [];
-        let selectedSizes = {}; // រក្សាទុក Size ដែលបានជ្រើសរើសសម្រាប់ទំនិញនីមួយៗ
+        let selectedSizes = {};
 
         async function loadStock() {
             try {
                 let res = await fetch('/api/products');
                 productsData = await res.json();
-                renderProducts();
+                renderProducts(productsData);
             } catch (err) {
                 document.getElementById('stockList').innerHTML = "កើតមានកំហុសក្នុងការផ្ទុកទិន្នន័យ";
             }
         }
 
-        function renderProducts() {
+        function renderProducts(dataToRender) {
             let html = '';
-            productsData.forEach(prod => {
+            
+            if (dataToRender.length === 0) {
+                document.getElementById('stockList').innerHTML = `<div style="text-align: center; color: #94a3b8; margin-top: 20px;">រកไม่พบទំនិញដែលអ្នកស្វែងរក!</div>`;
+                return;
+            }
+
+            dataToRender.forEach(prod => {
                 let ref = prod.ref;
                 
-                // កំណត់ Size លំនាំដើមជា M ប្រសិនបើមិនទាន់បានជ្រើសរើស
                 if (!selectedSizes[ref]) {
                     let defaultSizeObj = prod.sizes.find(s => s.size.toUpperCase() === 'M') || prod.sizes[0];
                     selectedSizes[ref] = defaultSizeObj ? defaultSizeObj.size : 'M';
@@ -60,7 +77,6 @@
                 let currentSizeObj = prod.sizes.find(s => s.size.toUpperCase() === currentSize.toUpperCase()) || { stock_qty: 0 };
                 let currentQty = currentSizeObj.stock_qty;
 
-                // បង្កើតប៊ូតុង Size (S, M, L, XL, XXL)
                 let sizeButtons = '';
                 ['S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
                     let sizeData = prod.sizes.find(s => s.size.toUpperCase() === sz);
@@ -83,7 +99,7 @@
                             <span class="sub">ស្តុក Size <b style="color:#38bdf8">${currentSize}</b>:</span>
                             <div class="controls">
                                 <button class="qty-btn" onclick="updateQty('${ref}', '${currentSize}', ${currentQty - 1})">-</button>
-                                <input type="number" value="${currentQty}" onchange="updateQty('${ref}', '${currentSize}', this.value)">
+                                <input type="number" class="qty-input" value="${currentQty}" onchange="updateQty('${ref}', '${currentSize}', this.value)">
                                 <button class="qty-btn" onclick="updateQty('${ref}', '${currentSize}', ${currentQty + 1})">+</button>
                             </div>
                         </div>
@@ -93,9 +109,19 @@
             document.getElementById('stockList').innerHTML = html;
         }
 
+        function filterStockList() {
+            let keyword = document.getElementById('searchInput').value.toLowerCase().trim();
+            let filtered = productsData.filter(prod => {
+                let title = prod.title_km.toLowerCase();
+                let ref = String(prod.ref).toLowerCase();
+                return title.includes(keyword) || ref.includes(keyword);
+            });
+            renderProducts(filtered);
+        }
+
         function selectSize(ref, size) {
             selectedSizes[ref] = size;
-            renderProducts();
+            filterStockList(); // រក្សាស្ថានភាព Search ពេលចុចប្ដូរ Size
         }
 
         async function updateQty(ref, size, newQty) {
@@ -111,7 +137,10 @@
             if (!result.success) {
                 alert("មិនអាចកែប្រែស្តុកបានទេ!");
             } else {
-                loadStock();
+                // ទាញយកទិន្នន័យថ្មីមកវិញដោយរក្សា Filter ដើម
+                let resProd = await fetch('/api/products');
+                productsData = await resProd.json();
+                filterStockList();
             }
         }
 
