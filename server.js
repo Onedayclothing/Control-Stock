@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const { Telegraf } = require('telegraf');
 
 const app = express();
 app.use(cors());
@@ -12,6 +13,13 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
+
+// Telegram Bot Setup ជាមួយ Token របស់អ្នក
+const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
+const bot = new Telegraf(BOT_TOKEN);
+
+// កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
+let userStates = {};
 
 // បង្កើត Table ស្តុក និង ផលិតផលស្វ័យប្រវត្តិពេលចាប់ផ្តើម Server
 async function initDB() {
@@ -129,7 +137,7 @@ app.post('/api/admin/update-stock', async (req, res) => {
     }
 });
 
-// API: បន្ថែមទំនិញថ្មីពី Telegram Bot
+// API: បន្ថែមទំនិញថ្មីពី Telegram Bot ឬ Client
 app.post('/api/admin/add-product', async (req, res) => {
     let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
     try {
@@ -137,7 +145,6 @@ app.post('/api/admin/add-product', async (req, res) => {
         let parsedPrice = parseFloat(price) || 0;
         let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 10;
 
-        // 1. បញ្ចូល ឬអាប់ដេតព័ត៌មានទំនិញក្នុង Table products
         await pool.query(
             `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
              VALUES ($1, $2, $3, $4, $5, $6, $7) 
@@ -146,7 +153,6 @@ app.post('/api/admin/add-product', async (req, res) => {
             [cleanRef, title_km, desc_km || '', gender || 'men', type || 'tops', video_url || '', parsedPrice]
         );
 
-        // 2. បង្កើតស្តុកស្វ័យប្រវត្តិសម្រាប់ Size ទាំង 5 (S, M, L, XL, XXL)
         let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
         for (let size of sizes) {
             await pool.query(
@@ -207,6 +213,103 @@ app.post('/api/order', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+
+// --- TELEGRAM BOT CHAT FLOW (/AddProduct) ---
+bot.command('AddProduct', (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { step: 'REF', data: {} };
+    ctx.reply('📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី!\n\nសូមផ្ញើ **លេខកូដទំនិញ (Ref)** មក (ឧ. 7):', { parse_mode: 'Markdown' });
+});
+
+bot.on('text', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const text = ctx.message.text.trim();
+    
+    if (!userStates[chatId]) return;
+    let state = userStates[chatId];
+
+    switch (state.step) {
+        case 'REF':
+            state.data.ref = text;
+            state.step = 'TITLE';
+            ctx.reply('✍️ សូមបញ្ចូល **ឈ្មោះទំនិញ** (Title):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'TITLE':
+            state.data.title_km = text;
+            state.step = 'PRICE';
+            ctx.reply('💵 សូមបញ្ចូល **តម្លៃជាដុល្លារ** (ឧ. 15.00):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'PRICE':
+            state.data.price = parseFloat(text) || 0;
+            state.step = 'DESC';
+            ctx.reply('📝 សូមសរសេរ **ការបរិយាយ** ពីទំនិញ (Description):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'DESC':
+            state.data.desc_km = text;
+            state.step = 'VIDEO';
+            ctx.reply('🎬 សូមផ្ញើ **Link វីដេអូ** (ឧ. videos/your_video.mp4):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'VIDEO':
+            state.data.video_url = text;
+            state.step = 'GENDER';
+            ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូលคำថា **men** ឬ **women**):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'GENDER':
+            state.data.gender = text.toLowerCase();
+            state.step = 'TYPE';
+            ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. **tops** សម្រាប់អាវ, **pants** សម្រាប់ខោ):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'TYPE':
+            state.data.type = text.toLowerCase();
+            state.step = 'STOCK';
+            ctx.reply('📦 សូមបញ្ជាក់ **ចំនួនស្តុកដើម** សម្រាប់ Size នីមួយៗ (ឧ. 20):', { parse_mode: 'Markdown' });
+            break;
+
+        case 'STOCK':
+            state.data.initial_stock = parseInt(text) || 10;
+            
+            try {
+                let cleanRef = String(state.data.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
+                let parsedPrice = parseFloat(state.data.price) || 0;
+                let defaultQty = state.data.initial_stock;
+
+                await pool.query(
+                    `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+                     ON CONFLICT (ref) DO UPDATE 
+                     SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
+                    [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
+                );
+
+                let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+                for (let size of sizes) {
+                    await pool.query(
+                        `INSERT INTO stock (ref, size, stock_qty, price) 
+                         VALUES ($1, $2, $3, $4) 
+                         ON CONFLICT (ref, size) DO UPDATE 
+                         SET price = $4`,
+                        [cleanRef, size, defaultQty, parsedPrice]
+                    );
+                }
+
+                ctx.reply(`✅ **ជោគជ័យ!** ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែមចូលប្រព័ន្ធ និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`, { parse_mode: 'Markdown' });
+            } catch (err) {
+                ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
+            }
+            
+            delete userStates[chatId];
+            break;
+    }
+});
+
+bot.launch();
+console.log('Telegram Bot started successfully...');
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
