@@ -16,17 +16,18 @@
         .search-input:focus { border-color: #0284c7; }
 
         .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-        .prod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .info { font-size: 13px; font-weight: 700; color: #f8fafc; }
-        .sub { font-size: 11px; color: #94a3b8; }
         
-        /* Sizes Grid Layout */
-        .sizes-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; }
-        .size-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 6px 2px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .size-name { font-size: 11px; font-weight: bold; color: #38bdf8; }
-        .size-controls { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; }
-        .size-btn-qty { background: #0284c7; color: white; border: none; width: 22px; height: 22px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
-        .size-input { width: 32px; text-align: center; background: #1e293b; color: white; border: 1px solid #334155; border-radius: 4px; padding: 2px 0; font-weight: bold; font-size: 11px; }
+        /* Product Title Line */
+        .prod-title-line { font-size: 13px; font-weight: 700; color: #f8fafc; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .prod-price { font-size: 13px; color: #38bdf8; font-weight: 800; }
+        
+        /* Size Vertical List Style */
+        .size-list { display: flex; flex-direction: column; gap: 6px; }
+        .size-row-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 6px 12px; }
+        .size-label { font-size: 12px; font-weight: bold; color: #94a3b8; }
+        .controls { display: flex; align-items: center; gap: 6px; }
+        button.qty-btn { background: #0284c7; color: white; border: none; width: 30px; height: 30px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        input.qty-input { width: 50px; text-align: center; background: #1e293b; color: white; border: 1px solid #334155; border-radius: 6px; padding: 5px; font-weight: bold; font-size: 13px; }
         
         .loading { text-align: center; color: #94a3b8; margin-top: 30px; font-size: 13px; }
     </style>
@@ -70,18 +71,18 @@
                 let ref = prod.ref;
                 let sizesHtml = '';
                 
-                // បង្ហាញ Size ទាំង ៥ (S, M, L, XL, XXL) ព្រមទាំងស្តុករបស់វាផ្ទាល់
+                // បង្ហាញ Size នីមួយៗជាជួរដេកចុះក្រោម (Vertical lines)
                 ['S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
                     let sizeData = prod.sizes.find(s => s.size.toUpperCase() === sz) || { stock_qty: 0 };
                     let qty = sizeData.stock_qty;
 
                     sizesHtml += `
-                        <div class="size-box">
-                            <div class="size-name">${sz}</div>
-                            <div class="size-controls">
-                                <button class="size-btn-qty" onclick="updateQty('${ref}', '${sz}', ${qty - 1})">-</button>
-                                <input type="number" class="size-input" value="${qty}" onchange="updateQty('${ref}', '${sz}', this.value)">
-                                <button class="size-btn-qty" onclick="updateQty('${ref}', '${sz}', ${qty + 1})">+</button>
+                        <div class="size-row-item">
+                            <span class="size-label">Size: ${sz}</span>
+                            <div class="controls">
+                                <button class="qty-btn" onclick="updateQty('${ref}', '${sz}', ${qty - 1})">-</button>
+                                <input type="number" class="qty-input" value="${qty}" onchange="updateQty('${ref}', '${sz}', this.value)">
+                                <button class="qty-btn" onclick="updateQty('${ref}', '${sz}', ${qty + 1})">+</button>
                             </div>
                         </div>
                     `;
@@ -89,13 +90,11 @@
 
                 html += `
                     <div class="card">
-                        <div class="prod-header">
-                            <div>
-                                <div class="info">Ref: ${ref} — ${prod.title_km}</div>
-                                <div class="sub">តម្លៃ: $${parseFloat(prod.price).toFixed(2)}</div>
-                            </div>
+                        <div class="prod-title-line">
+                            <span>Ref: ${ref} - ${prod.title_km}</span>
+                            <span class="prod-price">$${parseFloat(prod.price).toFixed(2)}</span>
                         </div>
-                        <div class="sizes-container">
+                        <div class="size-list">
                             ${sizesHtml}
                         </div>
                     </div>
@@ -127,7 +126,6 @@
             if (!result.success) {
                 alert("មិនអាចកែប្រែស្តុកបានទេ!");
             } else {
-                // ទាញយកទិន្នន័យថ្មីមកវិញដោយរក្សា Search Filter ដើម
                 let resProd = await fetch('/api/products');
                 productsData = await resProd.json();
                 filterStockList();
