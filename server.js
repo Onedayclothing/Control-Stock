@@ -215,9 +215,10 @@ app.post('/api/order', async (req, res) => {
 });
 
 // --- TELEGRAM BOT COMMANDS & CHAT FLOW ---
+
+// 1. បន្ថែមទំនិញថ្មី (Auto Ref)
 bot.command('AddProduct', async (ctx) => {
     const chatId = ctx.chat.id;
-    
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -227,10 +228,59 @@ bot.command('AddProduct', async (ctx) => {
         });
         let nextRef = String(maxRef + 1);
 
-        userStates[chatId] = { step: 'TITLE', data: { ref: nextRef } };
+        userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+    }
+});
+
+// 2. កែប្រែទំនិញដែលមានស្រាប់ (Edit Product តាម Ref ឧ. /EditRef7)
+bot.hears(/^\/editref(.+)/i, async (ctx) => {
+    let chatId = ctx.chat.id;
+    let rawRef = ctx.match[1].trim();
+    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+
+    try {
+        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+        if (check.rows.length === 0) {
+            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធសម្រាប់កែប្រែទេ!`);
+        }
+
+        userStates[chatId] = { action: 'EDIT', step: 'TITLE', data: { ref: cleanRef } };
+        ctx.reply(`✏️ កែប្រែទំនិញ Ref : ${cleanRef}\nសរសេរ : បញ្ចូលឈ្មោះទំនិញថ្មី`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហាស្វែងរកទំនិញ: ${err.message}`);
+    }
+});
+
+// 3. ឆែកស្តុកទំនិញរហ័សតាម Bot (/stock)
+bot.command('stock', async (ctx) => {
+    try {
+        let query = `
+            SELECT p.ref, p.title_km, s.size, s.stock_qty
+            FROM products p
+            LEFT JOIN stock s ON p.ref = s.ref
+            ORDER BY CAST(p.ref AS INTEGER) ASC, s.size;
+        `;
+        let result = await pool.query(query);
+        if (result.rows.length === 0) {
+            return ctx.reply('📦 គ្មានទំនិញក្នុងស្តុកឡើយ។');
+        }
+
+        let msg = '📊 **តារាងស្តុកទំនិញហាង OneDay**\n\n';
+        let currentRef = '';
+        result.rows.forEach(row => {
+            if (row.ref !== currentRef) {
+                currentRef = row.ref;
+                msg += `\n🏷️ **Ref: ${row.ref} - ${row.title_km}**\n`;
+            }
+            msg += `   • Size ${row.size}: ${row.stock_qty} នាក់/អង\n`;
+        });
+
+        ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err) {
+        ctx.reply(`❌ បរាជ័យក្នុងការទាញយកស្តុក: ${err.message}`);
     }
 });
 
@@ -238,13 +288,13 @@ bot.command('cancel', (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការបន្ថែមទំនិញរួចរាល់។');
+        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
 });
 
-// មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (Auto-Shift)
+// 4. លុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (Auto-Shift)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -324,7 +374,7 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
     });
 });
 
-// Handle Button Click for Type Selection (Auto Saves with Stock 0)
+// Handle Button Click for Type Selection (Auto Saves Product & Stock 0 if new)
 bot.action(/^type_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
@@ -339,7 +389,6 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
         let parsedPrice = parseFloat(state.data.price) || 0;
-        let defaultQty = 0; // Auto 0
 
         await pool.query(
             `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
@@ -349,15 +398,18 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
         );
 
-        let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
-        for (let size of sizes) {
-            await pool.query(
-                `INSERT INTO stock (ref, size, stock_qty, price) 
-                 VALUES ($1, $2, $3, $4) 
-                 ON CONFLICT (ref, size) DO UPDATE 
-                 SET price = $4`,
-                [cleanRef, size, defaultQty, parsedPrice]
-            );
+        // បើជាការ ADD ថ្មី គឺបង្កើត Stock 0 ជូន
+        if (state.action === 'ADD') {
+            let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+            for (let size of sizes) {
+                await pool.query(
+                    `INSERT INTO stock (ref, size, stock_qty, price) 
+                     VALUES ($1, $2, $3, $4) 
+                     ON CONFLICT (ref, size) DO UPDATE 
+                     SET price = $4`,
+                    [cleanRef, size, 0, parsedPrice]
+                );
+            }
         }
 
         await ctx.reply('សំណើរបានជោគជ័យ 📦');
