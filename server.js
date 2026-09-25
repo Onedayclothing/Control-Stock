@@ -231,7 +231,32 @@ bot.command('cancel', (ctx) => {
     }
 });
 
-// បង្កើតពាក្យបញ្ជា /admin ដើម្បីបើក Admin Mini App ក្នុង Telegram ផ្ទាល់យ៉ាងស្រួល
+// មុខងារថ្មី៖ លុបទំនិញតាមរយៈ Telegram ឧ. /DeleteRef7 ឬ /deleteref7
+bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
+    let rawRef = ctx.match[1].trim();
+    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+
+    if (!cleanRef) {
+        return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. /DeleteRef7)');
+    }
+
+    try {
+        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+        if (check.rows.length === 0) {
+            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
+        }
+
+        // លុបស្តុក ਅਤੇផលិតផលចេញពី Database
+        await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
+        await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+
+        ctx.reply(`🗑️ ជោគជ័យ! ទំនិញ Ref ${cleanRef} និងស្តុកពាក់ព័ន្ធត្រូវបានលុបចេញពីប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+    } catch (err) {
+        ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
+    }
+});
+
+// បង្កើតពាក្យបញ្ជា /admin ដើម្បីបើក Admin Mini App ក្នុង Telegram ផ្ទាល់
 bot.command('admin', (ctx) => {
     ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
         reply_markup: {
