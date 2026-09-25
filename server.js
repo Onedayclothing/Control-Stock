@@ -231,91 +231,91 @@ bot.command('cancel', (ctx) => {
     }
 });
 
-// ចាប់យកហ្វាលវីដេអូដែល Admin Upload ផ្ទាល់ក្នុងជំហាន VIDEO
-bot.on('video', async (ctx) => {
+// Unified Message Handler (គ្រប់គ្រងទាំង Text និង Video Upload រួមជាមួយ Railway Full URL)
+bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
-    if (!userStates[chatId] || userStates[chatId].step !== 'VIDEO') return;
-
-    let state = userStates[chatId];
-    await ctx.sendChatAction('typing');
-
-    try {
-        const video = ctx.message.video;
-        const fileId = video.file_id;
-        const fileLink = await ctx.telegram.getFileLink(fileId);
-
-        // Download វីដេអូពី Telegram មកកាន់ Server ក្នុង Folder videos/
-        const response = await fetch(fileLink.href);
-        const buffer = Buffer.from(await response.arrayBuffer());
-        
-        const fileName = `vid_${Date.now()}.mp4`;
-        const filePath = path.join(videoDir, fileName);
-        fs.writeFileSync(filePath, buffer);
-
-        state.data.video_url = `videos/${fileName}`;
-        state.step = 'GENDER';
-        ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
-    } catch (err) {
-        ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}`);
-    }
-});
-
-// ស្តាប់សារអត្ថបទតាមជំហាននីមួយៗ
-bot.on('text', async (ctx) => {
-    const chatId = ctx.chat.id;
-    const text = ctx.message.text.trim();
-    
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
 
     await ctx.sendChatAction('typing');
 
+    const msg = ctx.message;
+    const text = msg.text || msg.caption || '';
+    const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
+
     switch (state.step) {
         case 'REF':
-            state.data.ref = text;
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលលេខកូដទំនិញ (Ref) ជាអត្ថបទ!');
+            state.data.ref = text.trim();
             state.step = 'TITLE';
-            ctx.reply('✍️ សូមបញ្ចូល ឈ្មោះទំនិញ (Title):');
-            break;
+            return ctx.reply('✍️ សូមបញ្ចូល ឈ្មោះទំនិញ (Title):');
 
         case 'TITLE':
-            state.data.title_km = text;
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះទំនិញជាអត្ថបទ!');
+            state.data.title_km = text.trim();
             state.step = 'PRICE';
-            ctx.reply('💵 សូមបញ្ចូល តម្លៃជាដុល្លារ (ឧ. 15.00):');
-            break;
+            return ctx.reply('💵 សូមបញ្ចូល តម្លៃជាដុល្លារ (ឧ. 15.00):');
 
         case 'PRICE':
-            state.data.price = parseFloat(text) || 0;
+            let price = parseFloat(text);
+            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខឱ្យបានត្រឹមត្រូវ (ឧ. 15.00):');
+            state.data.price = price;
             state.step = 'DESC';
-            ctx.reply('📝 សូមសរសេរ ការបរិយាយ ពីទំនិញ (Description):');
-            break;
+            return ctx.reply('📝 សូមសរសេរ ការបរិយាយ ពីទំនិញ (Description):');
 
         case 'DESC':
-            state.data.desc_km = text;
+            state.data.desc_km = text.trim();
             state.step = 'VIDEO';
-            ctx.reply('🎬 សូម Upload ឬផ្ញើហ្វាលវីដេអូរបស់អ្នកមកទីនេះ مباشرة:');
-            break;
+            return ctx.reply('🎬 សូម Upload ហ្វាលវីដេអូ ឬផ្ញើ Link វីដេអូរបស់អ្នកមកទីនេះ:');
 
         case 'VIDEO':
-            // ករណី Admin វាយបញ្ចូលเป็น Link ជំនួសការ Upload
-            state.data.video_url = text;
+            let videoUrl = '';
+            if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
+                try {
+                    let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
+                    let link = await ctx.telegram.getFileLink(fileId);
+                    let urlStr = typeof link === 'string' ? link : link.href || link.toString();
+                    
+                    let response = await fetch(urlStr);
+                    let arrayBuffer = await response.arrayBuffer();
+                    let buffer = Buffer.from(arrayBuffer);
+                    
+                    let fileName = `vid_${Date.now()}.mp4`;
+                    let filePath = path.join(videoDir, fileName);
+                    fs.writeFileSync(filePath, buffer);
+
+                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                } catch (err) {
+                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សូមព្យាយាមផ្ញើវីដេអូសារថ្មី។`);
+                }
+            } else if (text.trim()) {
+                let inputUrl = text.trim();
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+            } else {
+                return ctx.reply('⚠️ សូម Upload ហ្វាលវីដេអូ ឬផ្ញើ Link វីដេអូឱ្យបានត្រឹមត្រូវ!');
+            }
+
+            state.data.video_url = videoUrl;
             state.step = 'GENDER';
-            ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
-            break;
+            return ctx.reply('🚻 សូមជ្រើសរើសប្រភេទភេទ (វាយបញ្ចូល men ឬ women):');
 
         case 'GENDER':
-            state.data.gender = text.toLowerCase();
+            let gender = text.trim().toLowerCase();
+            if (gender !== 'men' && gender !== 'women') return ctx.reply('⚠️ សូមបញ្ចូលពាក្យ men ឬ women ឱ្យបានត្រឹមត្រូវ!');
+            state.data.gender = gender;
             state.step = 'TYPE';
-            ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. tops សម្រាប់អាវ, pants សម្រាប់ខោ):');
-            break;
+            return ctx.reply('🏷️ សូមបញ្ជាក់ប្រភេទ (ឧ. tops សម្រាប់អាវ, pants សម្រាប់ខោ):');
 
         case 'TYPE':
-            state.data.type = text.toLowerCase();
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ជាក់ប្រភេទជាអត្ថបទ (ឧ. tops):');
+            state.data.type = text.trim().toLowerCase();
             state.step = 'STOCK';
-            ctx.reply('📦 សូមបញ្ជាក់ ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (ឧ. 20):');
-            break;
+            return ctx.reply('📦 សូមបញ្ជាក់ ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (ឧ. 20):');
 
         case 'STOCK':
-            state.data.initial_stock = parseInt(text) || 10;
+            let stock = parseInt(text);
+            if (isNaN(stock)) return ctx.reply('⚠️ សូមបញ្ចូលចំនួនស្តុកជាតួលេខ (ឧ. 20):');
+            state.data.initial_stock = stock;
             
             try {
                 let cleanRef = String(state.data.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -341,9 +341,9 @@ bot.on('text', async (ctx) => {
                     );
                 }
 
-                ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញទំនិញនេះភ្លាមៗ។`);
+                await ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុក Size (S, M, L, XL, XXL) រួចរាល់!\n\n🌐 Website នឹង Detect ឃើញវីដេអូនោះភ្លាមៗ។`);
             } catch (err) {
-                ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
+                await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
             }
             
             delete userStates[chatId];
