@@ -228,7 +228,7 @@ bot.command('AddProduct', async (ctx) => {
         let nextRef = String(maxRef + 1);
 
         userStates[chatId] = { step: 'TITLE', data: { ref: nextRef } };
-        ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref  অটো: ${nextRef})\n\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
+        ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
@@ -324,18 +324,48 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
     });
 });
 
-// Handle Button Click for Type Selection
+// Handle Button Click for Type Selection (Auto Saves with Stock 0)
 bot.action(/^type_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
 
     let type = ctx.match[1];
     userStates[chatId].data.type = type;
-    userStates[chatId].step = 'STOCK';
+    let state = userStates[chatId];
 
     await ctx.answerCbQuery();
     await ctx.editMessageText(`🏷️ ប្រភេទដែលបានជ្រើសរើស: ${type}`);
-    await ctx.reply('សូមបញ្ជាក់ចំនួនស្តុកដើម សម្រាប់ Size នីមួយៗ (Auto Default is 0):');
+
+    try {
+        let cleanRef = String(state.data.ref).trim().toUpperCase();
+        let parsedPrice = parseFloat(state.data.price) || 0;
+        let defaultQty = 0; // Auto 0
+
+        await pool.query(
+            `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+             ON CONFLICT (ref) DO UPDATE 
+             SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
+            [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
+        );
+
+        let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+        for (let size of sizes) {
+            await pool.query(
+                `INSERT INTO stock (ref, size, stock_qty, price) 
+                 VALUES ($1, $2, $3, $4) 
+                 ON CONFLICT (ref, size) DO UPDATE 
+                 SET price = $4`,
+                [cleanRef, size, defaultQty, parsedPrice]
+            );
+        }
+
+        await ctx.reply('សំណើរបានជោគជ័យ 📦');
+    } catch (err) {
+        await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
+    }
+
+    delete userStates[chatId];
 });
 
 // Unified Message Handler (គ្រប់គ្រង Text និង Video Upload)
@@ -408,42 +438,6 @@ bot.on('message', async (ctx) => {
                     ]
                 }
             });
-
-        case 'STOCK':
-            let stock = parseInt(text);
-            let defaultQty = isNaN(stock) ? 0 : stock;
-            state.data.initial_stock = defaultQty;
-            
-            try {
-                let cleanRef = String(state.data.ref).trim().toUpperCase();
-                let parsedPrice = parseFloat(state.data.price) || 0;
-
-                await pool.query(
-                    `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) 
-                     ON CONFLICT (ref) DO UPDATE 
-                     SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
-                    [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
-                );
-
-                let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
-                for (let size of sizes) {
-                    await pool.query(
-                        `INSERT INTO stock (ref, size, stock_qty, price) 
-                         VALUES ($1, $2, $3, $4) 
-                         ON CONFLICT (ref, size) DO UPDATE 
-                         SET price = $4`,
-                        [cleanRef, size, defaultQty, parsedPrice]
-                    );
-                }
-
-                await ctx.reply('សំណើរបានជោគជ័យ 📦');
-            } catch (err) {
-                await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
-            }
-            
-            delete userStates[chatId];
-            break;
     }
 });
 
