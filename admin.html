@@ -19,13 +19,15 @@
         .prod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .info { font-size: 13px; font-weight: 700; color: #f8fafc; }
         .sub { font-size: 11px; color: #94a3b8; }
-        .size-row { display: flex; gap: 6px; margin-bottom: 10px; }
-        .size-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; flex: 1; text-align: center; }
-        .size-btn.active { background: #0284c7; color: white; border-color: #0284c7; }
-        .stock-control { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #334155; padding-top: 8px; }
-        .controls { display: flex; align-items: center; gap: 6px; }
-        button.qty-btn { background: #0284c7; color: white; border: none; width: 32px; height: 32px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
-        input.qty-input { width: 60px; text-align: center; background: #0f172a; color: white; border: 1px solid #334155; border-radius: 6px; padding: 6px; font-weight: bold; font-size: 14px; }
+        
+        /* Sizes Grid Layout */
+        .sizes-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; }
+        .size-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 6px 2px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .size-name { font-size: 11px; font-weight: bold; color: #38bdf8; }
+        .size-controls { display: flex; align-items: center; justify-content: center; gap: 2px; width: 100%; }
+        .size-btn-qty { background: #0284c7; color: white; border: none; width: 22px; height: 22px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+        .size-input { width: 32px; text-align: center; background: #1e293b; color: white; border: 1px solid #334155; border-radius: 4px; padding: 2px 0; font-weight: bold; font-size: 11px; }
+        
         .loading { text-align: center; color: #94a3b8; margin-top: 30px; font-size: 13px; }
     </style>
 </head>
@@ -45,7 +47,6 @@
         }
 
         let productsData = [];
-        let selectedSizes = {};
 
         async function loadStock() {
             try {
@@ -61,29 +62,29 @@
             let html = '';
             
             if (dataToRender.length === 0) {
-                document.getElementById('stockList').innerHTML = `<div style="text-align: center; color: #94a3b8; margin-top: 20px;">រកไม่พบទំនិញដែលអ្នកស្វែងរក!</div>`;
+                document.getElementById('stockList').innerHTML = `<div style="text-align: center; color: #94a3b8; margin-top: 20px;">រកមិនឃើញទំនិញដែលអ្នកស្វែងរក!</div>`;
                 return;
             }
 
             dataToRender.forEach(prod => {
                 let ref = prod.ref;
+                let sizesHtml = '';
                 
-                if (!selectedSizes[ref]) {
-                    let defaultSizeObj = prod.sizes.find(s => s.size.toUpperCase() === 'M') || prod.sizes[0];
-                    selectedSizes[ref] = defaultSizeObj ? defaultSizeObj.size : 'M';
-                }
-                
-                let currentSize = selectedSizes[ref];
-                let currentSizeObj = prod.sizes.find(s => s.size.toUpperCase() === currentSize.toUpperCase()) || { stock_qty: 0 };
-                let currentQty = currentSizeObj.stock_qty;
-
-                let sizeButtons = '';
+                // បង្ហាញ Size ទាំង ៥ (S, M, L, XL, XXL) ព្រមទាំងស្តុករបស់វាផ្ទាល់
                 ['S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
-                    let sizeData = prod.sizes.find(s => s.size.toUpperCase() === sz);
-                    if (sizeData) {
-                        let isActive = (sz === currentSize.toUpperCase()) ? 'active' : '';
-                        sizeButtons += `<button class="size-btn ${isActive}" onclick="selectSize('${ref}', '${sz}')">${sz}</button>`;
-                    }
+                    let sizeData = prod.sizes.find(s => s.size.toUpperCase() === sz) || { stock_qty: 0 };
+                    let qty = sizeData.stock_qty;
+
+                    sizesHtml += `
+                        <div class="size-box">
+                            <div class="size-name">${sz}</div>
+                            <div class="size-controls">
+                                <button class="size-btn-qty" onclick="updateQty('${ref}', '${sz}', ${qty - 1})">-</button>
+                                <input type="number" class="size-input" value="${qty}" onchange="updateQty('${ref}', '${sz}', this.value)">
+                                <button class="size-btn-qty" onclick="updateQty('${ref}', '${sz}', ${qty + 1})">+</button>
+                            </div>
+                        </div>
+                    `;
                 });
 
                 html += `
@@ -94,14 +95,8 @@
                                 <div class="sub">តម្លៃ: $${parseFloat(prod.price).toFixed(2)}</div>
                             </div>
                         </div>
-                        <div class="size-row">${sizeButtons}</div>
-                        <div class="stock-control">
-                            <span class="sub">ស្តុក Size <b style="color:#38bdf8">${currentSize}</b>:</span>
-                            <div class="controls">
-                                <button class="qty-btn" onclick="updateQty('${ref}', '${currentSize}', ${currentQty - 1})">-</button>
-                                <input type="number" class="qty-input" value="${currentQty}" onchange="updateQty('${ref}', '${currentSize}', this.value)">
-                                <button class="qty-btn" onclick="updateQty('${ref}', '${currentSize}', ${currentQty + 1})">+</button>
-                            </div>
+                        <div class="sizes-container">
+                            ${sizesHtml}
                         </div>
                     </div>
                 `;
@@ -119,11 +114,6 @@
             renderProducts(filtered);
         }
 
-        function selectSize(ref, size) {
-            selectedSizes[ref] = size;
-            filterStockList(); // រក្សាស្ថានភាព Search ពេលចុចប្ដូរ Size
-        }
-
         async function updateQty(ref, size, newQty) {
             newQty = parseInt(newQty);
             if (isNaN(newQty) || newQty < 0) return;
@@ -137,7 +127,7 @@
             if (!result.success) {
                 alert("មិនអាចកែប្រែស្តុកបានទេ!");
             } else {
-                // ទាញយកទិន្នន័យថ្មីមកវិញដោយរក្សា Filter ដើម
+                // ទាញយកទិន្នន័យថ្មីមកវិញដោយរក្សា Search Filter ដើម
                 let resProd = await fetch('/api/products');
                 productsData = await resProd.json();
                 filterStockList();
