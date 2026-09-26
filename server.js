@@ -360,7 +360,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
@@ -480,7 +480,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ ពាក្យបញ្ជា /deleteref ដែលបានបន្ថែមមុខងារលុបវីដេអូក្នុង Volume ស្វ័យប្រវត្តិ
+// 🗑️ ពាក្យបញ្ជា /deleteref ដែលលុបទាំងទិន្នន័យ និងហ្វាលវីដេអូក្នុង Volume ស្វ័យប្រវត្តិ
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -500,14 +500,12 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
         let product = check.rows[0];
         let videoUrl = product.video_url;
 
-        // លុបឯកសារវីដេអូចេញពី Volume (Folder videos/) បើសិនជាមានហ្វាលក្នុង Local
         if (videoUrl && videoUrl.includes('/videos/')) {
             try {
                 let fileName = videoUrl.split('/videos/')[1];
                 let filePath = path.join(videoDir, fileName);
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
-                    console.log(`Successfully deleted video file: ${filePath}`);
                 }
             } catch (fileErr) {
                 console.error("Error deleting video file from disk:", fileErr);
@@ -535,6 +533,48 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
         ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef}, បានលុបវីដេអូពី Volume និងបានរំកិលលេខ Ref ក្នុងប្រព័ន្ធរួចរាល់ហើយ。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
     } catch (err) {
         ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
+    }
+});
+
+// 🧹 ពាក្យបញ្ជាសម្រាប់សម្អាតវីដេអូចាស់ៗដែលអត់មានប្រើប្រាស់ក្នុង Database
+bot.command('cleanup', async (ctx) => {
+    let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
+    try {
+        if (!fs.existsSync(videoDir)) {
+            return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
+        }
+
+        let files = fs.readdirSync(videoDir);
+        let prodRes = await pool.query("SELECT video_url FROM products");
+        let usedFiles = new Set();
+        
+        prodRes.rows.forEach(p => {
+            if (p.video_url) {
+                let parts = p.video_url.split('/videos/');
+                if (parts.length > 1) {
+                    usedFiles.add(parts[1]);
+                }
+            }
+        });
+
+        let deletedCount = 0;
+        
+        files.forEach(file => {
+            if (!usedFiles.has(file)) {
+                let filePath = path.join(videoDir, file);
+                try {
+                    fs.unlinkSync(filePath);
+                    deletedCount++;
+                } catch (e) {
+                    console.error(`Failed to delete file ${file}:`, e);
+                }
+            }
+        });
+
+        ctx.reply(`🧹 សម្អាត Volume បានជោគជ័យ!\n• បានលុបវីដេអូចាស់ៗចំនួន: ${deletedCount} ហ្វាល\n• រំដោះទំហំ Disk របស់ Server រួចរាល់។`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហាក្នុងការសម្អាត: ${err.message}`);
     }
 });
 
