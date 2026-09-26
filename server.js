@@ -71,6 +71,12 @@ async function initDB() {
             );
         `);
 
+        // 🛠️ បន្ថែម Column ទាំងនេះស្វ័យប្រវត្តិ ប្រសិនបើ Table ធ្លាប់មានរួចហើយ
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_en VARCHAR(255);`);
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_zh VARCHAR(255);`);
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_en TEXT;`);
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_zh TEXT;`);
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS stock (
                 id SERIAL PRIMARY KEY,
