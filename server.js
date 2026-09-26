@@ -197,7 +197,7 @@ app.post('/api/admin/add-product', async (req, res) => {
     }
 });
 
-// Endpoint កុម្មង់ទំនិញ (Order + Telegram Notification + Auto Stock Deduction)
+// Endpoint កុម្មង់ទំនិញ (Order + Telegram Notification + Auto Stock Deduction + User ID / Chat Link)
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
     try {
@@ -238,7 +238,7 @@ app.post('/api/order', async (req, res) => {
             }
         }
 
-        // រក្សាទុកកុម្មង់ចូល Database (orders table)
+        // រក្សាទុកកុម្មង់ចូល Database
         let orderRes = await pool.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
@@ -264,32 +264,44 @@ app.post('/api/order', async (req, res) => {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
             let custPhone = customer?.phone || customer?.phoneNumber || 'គ្មានលេខទូរស័ព្ទ';
             let custAddress = customer?.address || customer?.location || 'គ្មានអាសយដ្ឋាន';
+            let userId = customer?.userId || customer?.telegramId || '';
+            let username = customer?.username || '';
 
             let msg = `📦 **មានការកុម្មង់ទំនិញថ្មី!** (#Order ID: ${orderId})\n\n`;
             msg += `👤 **ព័ត៌មានអតិថិជន:**\n`;
             msg += `- ឈ្មោះ: ${custName}\n`;
             msg += `- លេខទូរស័ព្ទ: ${custPhone}\n`;
-            msg += `- អាសយដ្ឋាន: ${custAddress}\n\n`;
-            msg += `🛒 **ទំនិញកុម្មង់:**\n`;
+            msg += `- អាសយដ្ឋាន: ${custAddress}\n`;
+            if (userId) msg += `- Telegram ID: \`${userId}\`\n`;
+            if (username) msg += `- Username: @${username}\n`;
 
+            msg += `\n🛒 **ទំនិញកុម្មង់:**\n`;
             itemsSummary.forEach((it, idx) => {
                 msg += `${idx + 1}. Ref: ${it.ref} - ${it.title} (Size: ${it.size}) x ${it.qty} = $${Number(it.total).toFixed(2)}\n`;
             });
 
             msg += `\n💵 **សរុបទឹកប្រាក់:** $${Number(totalAmount).toFixed(2)}`;
 
+            // បង្កើតប៊ូតុងសកម្មភាព (Confirm, Cancel និងប៊ូតុងចុចឆាតរកអតិថិជនផ្ទាល់)
+            let inlineKeyboard = [
+                [
+                    { text: '✅ Confirm Order', callback_data: `confirm_order_${orderId}` },
+                    { text: '❌ Cancel & Restore Stock', callback_data: `cancel_order_${orderId}` }
+                ]
+            ];
+
+            // បើមាន Telegram ID ឬ Username គឺបង្កើត Link ប៊ូតុងអោយចុចឆាតទៅរកអតិថិជនភ្លាមៗ
+            if (userId) {
+                inlineKeyboard.push([{ text: '💬 ឆាតទៅកាន់អតិថិជន', url: `tg://user?id=${userId}` }]);
+            } else if (username) {
+                inlineKeyboard.push([{ text: '💬 ឆាតទៅកាន់អតិថិជន', url: `https://t.me/${username}` }]);
+            }
+
             for (let adm of adminsRes.rows) {
                 try {
                     await bot.telegram.sendMessage(adm.chat_id, msg, {
                         parse_mode: 'Markdown',
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    { text: '✅ Confirm Order', callback_data: `confirm_order_${orderId}` },
-                                    { text: '❌ Cancel & Restore Stock', callback_data: `cancel_order_${orderId}` }
-                                ]
-                            ]
-                        }
+                        reply_markup: { inline_keyboard: inlineKeyboard }
                     });
                 } catch (e) {
                     console.error("Failed to notify admin:", adm.chat_id, e.message);
@@ -305,13 +317,11 @@ app.post('/api/order', async (req, res) => {
 
 // --- TELEGRAM BOT COMMANDS & CALLBACKS ---
 
-// Start Command (កត់ត្រា Admin)
 bot.start(async (ctx) => {
     await registerAdmin(ctx.chat.id);
-    ctx.reply('👋 សួស្តី Admin! ប៊ូតុង និងប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។\n\nវាយពាក្យ /admin ដើម្បីបើក Mini App ឬ /stock ដើម្បីឆែកស្តុក។');
+    ctx.reply('👋 សួស្តី Admin! ប៊ូតុង និងប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
 });
 
-// 1. បន្ថែមទំនិញថ្មី (Auto Ref)
 bot.command('AddProduct', async (ctx) => {
     const chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -331,7 +341,6 @@ bot.command('AddProduct', async (ctx) => {
     }
 });
 
-// 2. កែប្រែទំនិញដែលមានស្រាប់ (Edit Product តាម Ref ឧ. /EditRef7)
 bot.hears(/^\/editref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -351,7 +360,6 @@ bot.hears(/^\/editref(.+)/i, async (ctx) => {
     }
 });
 
-// 3. ឆែកស្តុកទំនិញរហ័សតាម Bot (/stock)
 bot.command('stock', async (ctx) => {
     const chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -393,7 +401,6 @@ bot.command('cancel', (ctx) => {
     }
 });
 
-// 4. លុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (Auto-Shift)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -434,7 +441,6 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
-// បង្កើតពាក្យបញ្ជា /admin
 bot.command('admin', async (ctx) => {
     await registerAdmin(ctx.chat.id);
     ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
@@ -449,7 +455,6 @@ bot.command('admin', async (ctx) => {
     });
 });
 
-// Handling Order Confirmation (Admin clicks Confirm)
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
     try {
@@ -464,7 +469,6 @@ bot.action(/^confirm_order_(.+)$/, async (ctx) => {
     }
 });
 
-// Handling Order Cancellation & Stock Restore (Admin clicks Cancel & Restores Stock)
 bot.action(/^cancel_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
     try {
@@ -479,7 +483,6 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
 
-        // ស្តារស្តុកទំនិញនីមួយៗចូលវិញស្វ័យប្រវត្តិ
         for (let key in items) {
             let item = items[key];
             let cleanRef = String(item.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -503,7 +506,6 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
     }
 });
 
-// Handle Button Click for Gender Selection
 bot.action(/^gender_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId] || userStates[chatId].step !== 'GENDER') return;
@@ -530,7 +532,6 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
     });
 });
 
-// Handle Button Click for Type Selection (Auto Saves Product & Stock 0 if new)
 bot.action(/^type_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
@@ -554,7 +555,6 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
         );
 
-        // បើជាការ ADD ថ្មី គឺបង្កើត Stock 0 ជូន
         if (state.action === 'ADD') {
             let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
             for (let size of sizes) {
@@ -576,7 +576,6 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     delete userStates[chatId];
 });
 
-// Unified Message Handler (គ្រប់គ្រង Text និង Video Upload)
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
     await registerAdmin(chatId);
