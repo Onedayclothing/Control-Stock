@@ -197,7 +197,6 @@ app.post('/api/admin/add-product', async (req, res) => {
     }
 });
 
-// Endpoint កុម្មង់ទំនិញ (Order + Telegram Notification + Auto Stock Deduction + User ID / Chat Link)
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
     try {
@@ -333,7 +332,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
@@ -351,7 +350,111 @@ const cancelHandler = (ctx) => {
 bot.command('cancel', cancelHandler);
 bot.command('cancle', cancelHandler);
 
-// 3. មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (ឧ. /deleteref7)
+// 3. ពាក្យបញ្ជា /change (សម្រាប់កែប្រែទំនិញតាម Ref)
+bot.command('change', async (ctx) => {
+    let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
+    userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
+    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ (ឧ. 7):');
+});
+
+bot.hears(/^\/change(.+)/i, async (ctx) => {
+    let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
+    let rawRef = ctx.match[1].trim();
+    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+    await handleEditRefSelection(ctx, chatId, cleanRef);
+});
+
+async function handleEditRefSelection(ctx, chatId, cleanRef) {
+    try {
+        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+        if (check.rows.length === 0) {
+            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
+        }
+        let prod = check.rows[0];
+
+        userStates[chatId] = { action: 'CHANGE', step: 'SELECT_FIELD', data: { ref: cleanRef } };
+
+        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n`;
+        msg += `• ឈ្មោះ: ${prod.title_km}\n`;
+        msg += `• តម្លៃ: $${prod.price}\n\n`;
+        msg += `សូមជ្រើសរើសផ្នែកដែលចង់កែប្រែខាងក្រោម៖`;
+
+        await ctx.reply(msg, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
+                    [{ text: '💵 កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
+                    [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
+                    [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
+                    [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
+                    [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
+                ]
+            }
+        });
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហាស្វែងរកទំនិញ: ${err.message}`);
+    }
+}
+
+bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
+    let field = ctx.match[1];
+    let ref = ctx.match[2];
+    let chatId = ctx.chat.id;
+
+    if (field === 'cancel') {
+        delete userStates[chatId];
+        await ctx.answerCbQuery('❌ បានបោះបង់ការកែប្រែ');
+        return ctx.editMessageText('❌ បានលុបចោលដំណើរការកែប្រែរួចរាល់។');
+    }
+
+    if (field === 'gender') {
+        userStates[chatId] = { action: 'CHANGE', step: 'UPDATE_GENDER', data: { ref } };
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(`🚻 កែប្រែ Ref ${ref} - ជ្រើសរើសប្រភេទភេទ:`, {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: 'Men (បុរស)', callback_data: `update_gender_men_${ref}` },
+                        { text: 'Women (នារី)', callback_data: `update_gender_women_${ref}` }
+                    ]
+                ]
+            }
+        });
+        return;
+    }
+
+    userStates[chatId] = { action: 'CHANGE', step: `UPDATE_${field.toUpperCase()}`, data: { ref } };
+    await ctx.answerCbQuery();
+    
+    let promptText = '';
+    if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
+
+    await ctx.editMessageText(promptText);
+});
+
+bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
+    let gender = ctx.match[1];
+    let ref = ctx.match[2];
+    let chatId = ctx.chat.id;
+
+    try {
+        await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
+        delete userStates[chatId];
+        await ctx.answerCbQuery('✅ បានកែប្រែភេទជោគជ័យ!');
+        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទជា (${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}) រួចរាល់។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា');
+        await ctx.editMessageText(`❌ បរាជ័យក្នុងការកែប្រែ: ${err.message}`);
+    }
+});
+
+// 4. មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (ឧ. /deleteref7)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -525,6 +628,74 @@ bot.on('message', async (ctx) => {
     const text = msg.text || msg.caption || '';
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
+    // គ្រប់គ្រងសកម្មភាព CHANGE (កែប្រែទំនិញ)
+    if (state.action === 'CHANGE') {
+        if (state.step === 'GET_REF') {
+            let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
+            if (!cleanRef) return ctx.reply('⚠️ សូមបញ្ចូលលេខ Ref ឱ្យបានត្រឹមត្រូវ!');
+            delete userStates[chatId];
+            return handleEditRefSelection(ctx, chatId, cleanRef);
+        }
+
+        let ref = state.data.ref;
+
+        if (state.step === 'UPDATE_TITLE') {
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះទំនិញថ្មី!');
+            await pool.query("UPDATE products SET title_km = $1 WHERE UPPER(ref) = $2", [text.trim(), ref]);
+            delete userStates[chatId];
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែឈ្មោះថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        }
+
+        if (state.step === 'UPDATE_PRICE') {
+            let newPrice = parseFloat(text);
+            if (isNaN(newPrice)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខត្រឹមត្រូវ (ឧ. 15.00)');
+            await pool.query("UPDATE products SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
+            await pool.query("UPDATE stock SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
+            delete userStates[chatId];
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែតម្លៃថ្មី ($${newPrice.toFixed(2)}) រួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        }
+
+        if (state.step === 'UPDATE_DESC') {
+            await pool.query("UPDATE products SET desc_km = $1 WHERE UPPER(ref) = $2", [text.trim(), ref]);
+            delete userStates[chatId];
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែការបរិយាយថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        }
+
+        if (state.step === 'UPDATE_VIDEO') {
+            let videoUrl = '';
+            if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
+                try {
+                    let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
+                    let link = await ctx.telegram.getFileLink(fileId);
+                    let urlStr = typeof link === 'string' ? link : link.href || link.toString();
+                    
+                    let response = await fetch(urlStr);
+                    let arrayBuffer = await response.arrayBuffer();
+                    let buffer = Buffer.from(arrayBuffer);
+                    
+                    let fileName = `vid_${Date.now()}.mp4`;
+                    let filePath = path.join(videoDir, fileName);
+                    fs.writeFileSync(filePath, buffer);
+
+                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                } catch (err) {
+                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
+                }
+            } else if (text.trim()) {
+                let inputUrl = text.trim();
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+            } else {
+                return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
+            }
+
+            await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
+            delete userStates[chatId];
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែវីដេអូថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        }
+        return;
+    }
+
+    // គ្រប់គ្រងសកម្មភាព ADD (បន្ថែមទំនិញ)
     switch (state.step) {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ សរសេរ : បញ្ចូលឈ្មោះទំនិញ');
