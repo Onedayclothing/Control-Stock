@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const translate = require('translate-google'); // 📦 Library សម្រាប់បកប្រែស្វ័យប្រវត្តិ
 
 const app = express();
 app.use(cors());
@@ -32,6 +33,19 @@ async function registerAdmin(chatId) {
     }
 }
 
+// មុខងារបកប្រែស្វ័យប្រវត្តិពី ខ្មែរ ទៅ EN និង ZH
+async function autoTranslate(text) {
+    if (!text || text.trim() === '') return { en: '', zh: '' };
+    try {
+        let en = await translate(text, { from: 'km', to: 'en' });
+        let zh = await translate(text, { from: 'km', to: 'zh-CN' });
+        return { en, zh };
+    } catch (err) {
+        console.error("Translation error:", err);
+        return { en: text, zh: text };
+    }
+}
+
 // បង្កើត Folder videos បើមិនទាន់មាន
 const videoDir = path.join(__dirname, 'videos');
 if (!fs.existsSync(videoDir)) {
@@ -45,7 +59,11 @@ async function initDB() {
             CREATE TABLE IF NOT EXISTS products (
                 ref VARCHAR(50) PRIMARY KEY,
                 title_km VARCHAR(255),
+                title_en VARCHAR(255),
+                title_zh VARCHAR(255),
                 desc_km TEXT,
+                desc_en TEXT,
+                desc_zh TEXT,
                 gender VARCHAR(20),
                 type VARCHAR(20),
                 video_url VARCHAR(255),
@@ -92,9 +110,11 @@ async function initDB() {
                 ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00]
             ];
             for (let prod of initialProducts) {
+                let tTitle = await autoTranslate(prod[1]);
+                let tDesc = await autoTranslate(prod[2]);
                 await pool.query(
-                    "INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (ref) DO NOTHING",
-                    prod
+                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (ref) DO NOTHING",
+                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6]]
                 );
             }
         }
@@ -172,12 +192,15 @@ app.post('/api/admin/add-product', async (req, res) => {
         let parsedPrice = parseFloat(price) || 0;
         let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 0;
 
+        let tTitle = await autoTranslate(title_km);
+        let tDesc = await autoTranslate(desc_km || '');
+
         await pool.query(
-            `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
-            [cleanRef, title_km, desc_km || '', gender || 'men', type || 'tops', video_url || '', parsedPrice]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11`,
+            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', parsedPrice]
         );
 
         let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -191,7 +214,7 @@ app.post('/api/admin/add-product', async (req, res) => {
             );
         }
 
-        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបង្កើតស្តុកជោគជ័យ!` });
+        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបកប្រែស្វ័យប្រវត្តិជោគជ័យ!` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -316,7 +339,6 @@ bot.start(async (ctx) => {
     ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
 });
 
-// 1. ពាក្យបញ្ជា /add (សម្រាប់បន្ថែមទំនិញ)
 bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -336,7 +358,6 @@ bot.command('add', async (ctx) => {
     }
 });
 
-// 2. ពាក្យបញ្ជា /cancel ឬ /cancle (សម្រាប់បោះបង់ដំណើរការ)
 const cancelHandler = (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
@@ -350,7 +371,6 @@ const cancelHandler = (ctx) => {
 bot.command('cancel', cancelHandler);
 bot.command('cancle', cancelHandler);
 
-// 3. ពាក្យបញ្ជា /change (សម្រាប់កែប្រែទំនិញតាម Ref)
 bot.command('change', async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -385,12 +405,12 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: ' កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
-                    [{ text: ' កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
-                    [{ text: ' កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
-                    [{ text: ' កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
-                    [{ text: ' កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
-                    [{ text: ' បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
+                    [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
+                    [{ text: '💵 កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
+                    [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
+                    [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
+                    [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
+                    [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
                 ]
             }
         });
@@ -430,10 +450,10 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     await ctx.answerCbQuery();
     
     let promptText = '';
-    if (field === 'title') promptText = ` សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'price') promptText = ` សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
-    else if (field === 'desc') promptText = ` សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'video') promptText = ` សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
+    if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
 
     await ctx.editMessageText(promptText);
 });
@@ -447,14 +467,13 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
         delete userStates[chatId];
         await ctx.answerCbQuery('✅ បានកែប្រែភេទជោគជ័យ!');
-        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទជា (${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}) រួចរាល់។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទជា (${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}) រួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា');
         await ctx.editMessageText(`❌ បរាជ័យក្នុងការកែប្រែ: ${err.message}`);
     }
 });
 
-// 4. មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (ឧ. /deleteref7)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -489,7 +508,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             }
         }
 
-        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
     } catch (err) {
         ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
     }
@@ -587,12 +606,15 @@ bot.action(/^type_(.+)$/, async (ctx) => {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
         let parsedPrice = parseFloat(state.data.price) || 0;
 
+        let tTitle = await autoTranslate(state.data.title_km);
+        let tDesc = await autoTranslate(state.data.desc_km || '');
+
         await pool.query(
-            `INSERT INTO products (ref, title_km, desc_km, gender, type, video_url, price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, desc_km = $3, gender = $4, type = $5, video_url = $6, price = $7`,
-            [cleanRef, state.data.title_km, state.data.desc_km || '', state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11`,
+            [cleanRef, state.data.title_km, tTitle.en, tTitle.zh, state.data.desc_km || '', tDesc.en, tDesc.zh, state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
         );
 
         if (state.action === 'ADD') {
@@ -608,7 +630,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             }
         }
 
-        await ctx.reply('សំណើរបានជោគជ័យ 📦');
+        await ctx.reply('សំណើរបានជោគជ័យ និងបកប្រែស្វ័យប្រវត្តិរួចរាល់ 📦');
     } catch (err) {
         await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
     }
@@ -628,7 +650,6 @@ bot.on('message', async (ctx) => {
     const text = msg.text || msg.caption || '';
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
-    // គ្រប់គ្រងសកម្មភាព CHANGE (កែប្រែទំនិញ)
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
             let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -641,9 +662,15 @@ bot.on('message', async (ctx) => {
 
         if (state.step === 'UPDATE_TITLE') {
             if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះទំនិញថ្មី!');
-            await pool.query("UPDATE products SET title_km = $1 WHERE UPPER(ref) = $2", [text.trim(), ref]);
+            let newTitle = text.trim();
+            let tTitle = await autoTranslate(newTitle);
+
+            await pool.query(
+                "UPDATE products SET title_km = $1, title_en = $2, title_zh = $3 WHERE UPPER(ref) = $4", 
+                [newTitle, tTitle.en, tTitle.zh, ref]
+            );
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែឈ្មោះថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែឈ្មោះថ្មី និងបកប្រែស្វ័យប្រវត្តិរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
         }
 
         if (state.step === 'UPDATE_PRICE') {
@@ -656,9 +683,15 @@ bot.on('message', async (ctx) => {
         }
 
         if (state.step === 'UPDATE_DESC') {
-            await pool.query("UPDATE products SET desc_km = $1 WHERE UPPER(ref) = $2", [text.trim(), ref]);
+            let newDesc = text.trim();
+            let tDesc = await autoTranslate(newDesc);
+
+            await pool.query(
+                "UPDATE products SET desc_km = $1, desc_en = $2, desc_zh = $3 WHERE UPPER(ref) = $4", 
+                [newDesc, tDesc.en, tDesc.zh, ref]
+            );
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែការបរិយាយថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែការបរិយាយថ្មី និងបកប្រែស្វ័យប្រវត្តិរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
         }
 
         if (state.step === 'UPDATE_VIDEO') {
@@ -695,7 +728,6 @@ bot.on('message', async (ctx) => {
         return;
     }
 
-    // គ្រប់គ្រងសកម្មភាព ADD (បន្ថែមទំនិញ)
     switch (state.step) {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ សរសេរ : បញ្ចូលឈ្មោះទំនិញ');
