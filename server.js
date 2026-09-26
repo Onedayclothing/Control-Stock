@@ -132,7 +132,7 @@ app.get('/api/products', async (req, res) => {
             FROM products p
             LEFT JOIN stock s ON p.ref = s.ref
             GROUP BY p.ref
-            ORDER BY CAST(p.ref AS INTEGER) ASC;
+            ORDER BY CAST(p.ref AS INTEGER) DESC;
         `;
         let result = await pool.query(query);
         res.json(result.rows);
