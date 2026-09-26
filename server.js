@@ -282,7 +282,6 @@ app.post('/api/order', async (req, res) => {
 
             msg += `\n💵 **សរុបទឹកប្រាក់:** $${Number(totalAmount).toFixed(2)}`;
 
-            // បង្កើតប៊ូតុងសកម្មភាព (Confirm, Cancel និងប៊ូតុងចុចឆាតរកអតិថិជនផ្ទាល់)
             let inlineKeyboard = [
                 [
                     { text: '✅ Confirm Order', callback_data: `confirm_order_${orderId}` },
@@ -290,7 +289,6 @@ app.post('/api/order', async (req, res) => {
                 ]
             ];
 
-            // បើមាន Telegram ID ឬ Username គឺបង្កើត Link ប៊ូតុងអោយចុចឆាតទៅរកអតិថិជនភ្លាមៗ
             if (userId) {
                 inlineKeyboard.push([{ text: '💬 ឆាតទៅកាន់អតិថិជន', url: `tg://user?id=${userId}` }]);
             } else if (username) {
@@ -319,10 +317,11 @@ app.post('/api/order', async (req, res) => {
 
 bot.start(async (ctx) => {
     await registerAdmin(ctx.chat.id);
-    ctx.reply('👋 សួស្តី Admin! ប៊ូតុង និងប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+    ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
 });
 
-bot.command('AddProduct', async (ctx) => {
+// 1. ពាក្យបញ្ជា /add (សម្រាប់បន្ថែមទំនិញ)
+bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
     await registerAdmin(chatId);
     try {
@@ -341,57 +340,8 @@ bot.command('AddProduct', async (ctx) => {
     }
 });
 
-bot.hears(/^\/editref(.+)/i, async (ctx) => {
-    let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
-    let rawRef = ctx.match[1].trim();
-    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
-
-    try {
-        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-        if (check.rows.length === 0) {
-            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធសម្រាប់កែប្រែទេ!`);
-        }
-
-        userStates[chatId] = { action: 'EDIT', step: 'TITLE', data: { ref: cleanRef } };
-        ctx.reply(`✏️ កែប្រែទំនិញ Ref : ${cleanRef}\nសរសេរ : បញ្ចូលឈ្មោះទំនិញថ្មី`);
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាស្វែងរកទំនិញ: ${err.message}`);
-    }
-});
-
-bot.command('stock', async (ctx) => {
-    const chatId = ctx.chat.id;
-    await registerAdmin(chatId);
-    try {
-        let query = `
-            SELECT p.ref, p.title_km, s.size, s.stock_qty
-            FROM products p
-            LEFT JOIN stock s ON p.ref = s.ref
-            ORDER BY CAST(p.ref AS INTEGER) ASC, s.size;
-        `;
-        let result = await pool.query(query);
-        if (result.rows.length === 0) {
-            return ctx.reply('📦 គ្មានទំនិញក្នុងស្តុកឡើយ។');
-        }
-
-        let msg = '📊 **តារាងស្តុកទំនិញហាង OneDay**\n\n';
-        let currentRef = '';
-        result.rows.forEach(row => {
-            if (row.ref !== currentRef) {
-                currentRef = row.ref;
-                msg += `\n🏷️ **Ref: ${row.ref} - ${row.title_km}**\n`;
-            }
-            msg += `   • Size ${row.size}: ${row.stock_qty} អង\n`;
-        });
-
-        ctx.reply(msg, { parse_mode: 'Markdown' });
-    } catch (err) {
-        ctx.reply(`❌ បរាជ័យក្នុងការទាញយកស្តុក: ${err.message}`);
-    }
-});
-
-bot.command('cancel', (ctx) => {
+// 2. ពាក្យបញ្ជា /cancel ឬ /cancle (សម្រាប់បោះបង់ដំណើរការ)
+const cancelHandler = (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
@@ -399,61 +349,10 @@ bot.command('cancel', (ctx) => {
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
-});
+};
 
-bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
-    let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
-    let rawRef = ctx.match[1].trim();
-    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
-
-    if (!cleanRef) {
-        return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. /DeleteRef7)');
-    }
-
-    try {
-        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-        if (check.rows.length === 0) {
-            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
-        }
-
-        let deletedNum = parseInt(cleanRef);
-
-        await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
-        await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-
-        if (!isNaN(deletedNum)) {
-            let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
-            
-            for (let row of allProds.rows) {
-                let currentNum = parseInt(row.ref);
-                if (!isNaN(currentNum) && currentNum > deletedNum) {
-                    let newNum = currentNum - 1;
-                    await pool.query("UPDATE products SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
-                    await pool.query("UPDATE stock SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
-                }
-            }
-        }
-
-        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
-    } catch (err) {
-        ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
-    }
-});
-
-bot.command('admin', async (ctx) => {
-    await registerAdmin(ctx.chat.id);
-    ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
-        reply_markup: {
-            inline_keyboard: [
-                [{ 
-                    text: '📂 បើក Admin Mini App', 
-                    web_app: { url: 'https://control-stock-production-a855.up.railway.app/admin.html' } 
-                }]
-            ]
-        }
-    });
-});
+bot.command('cancel', cancelHandler);
+bot.command('cancle', cancelHandler);
 
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
