@@ -355,7 +355,7 @@ bot.command('change', async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
-    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ (ឧ. 7):');
+    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
@@ -385,12 +385,12 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
-                    [{ text: '💵 កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
-                    [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
-                    [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
-                    [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
-                    [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
+                    [{ text: ' កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
+                    [{ text: ' កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
+                    [{ text: ' កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
+                    [{ text: ' កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
+                    [{ text: ' កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
+                    [{ text: ' បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
                 ]
             }
         });
@@ -430,10 +430,10 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     await ctx.answerCbQuery();
     
     let promptText = '';
-    if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
-    else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
+    if (field === 'title') promptText = ` សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'price') promptText = ` សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'desc') promptText = ` សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'video') promptText = ` សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
 
     await ctx.editMessageText(promptText);
 });
