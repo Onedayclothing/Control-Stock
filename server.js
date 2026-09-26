@@ -480,6 +480,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
+// 🗑️ ពាក្យបញ្ជា /deleteref ដែលបានបន្ថែមមុខងារលុបវីដេអូក្នុង Volume ស្វ័យប្រវត្តិ
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -494,6 +495,23 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
         let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
         if (check.rows.length === 0) {
             return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
+        }
+
+        let product = check.rows[0];
+        let videoUrl = product.video_url;
+
+        // លុបឯកសារវីដេអូចេញពី Volume (Folder videos/) បើសិនជាមានហ្វាលក្នុង Local
+        if (videoUrl && videoUrl.includes('/videos/')) {
+            try {
+                let fileName = videoUrl.split('/videos/')[1];
+                let filePath = path.join(videoDir, fileName);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    console.log(`Successfully deleted video file: ${filePath}`);
+                }
+            } catch (fileErr) {
+                console.error("Error deleting video file from disk:", fileErr);
+            }
         }
 
         let deletedNum = parseInt(cleanRef);
@@ -514,7 +532,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             }
         }
 
-        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef}, បានលុបវីដេអូពី Volume និងបានរំកិលលេខ Ref ក្នុងប្រព័ន្ធរួចរាល់ហើយ。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
     } catch (err) {
         ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
     }
