@@ -238,14 +238,12 @@ app.post('/api/order', async (req, res) => {
             }
         }
 
-        // រក្សាទុកកុម្មង់ចូល Database
         let orderRes = await pool.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
         );
         let orderId = orderRes.rows[0].id;
 
-        // កាត់ស្តុកស្វ័យប្រវត្តិ
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -258,7 +256,6 @@ app.post('/api/order', async (req, res) => {
             );
         }
 
-        // ផ្ញើសារជូនដំណឹងទៅ Admin ទាំងអស់តាម Telegram
         let adminsRes = await pool.query("SELECT chat_id FROM admins");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
@@ -336,7 +333,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
@@ -353,6 +350,47 @@ const cancelHandler = (ctx) => {
 
 bot.command('cancel', cancelHandler);
 bot.command('cancle', cancelHandler);
+
+// 3. មុខងារលុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (ឧ. /deleteref7)
+bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
+    let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
+    let rawRef = ctx.match[1].trim();
+    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+
+    if (!cleanRef) {
+        return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. /deleteref7)');
+    }
+
+    try {
+        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+        if (check.rows.length === 0) {
+            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
+        }
+
+        let deletedNum = parseInt(cleanRef);
+
+        await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
+        await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+
+        if (!isNaN(deletedNum)) {
+            let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
+            
+            for (let row of allProds.rows) {
+                let currentNum = parseInt(row.ref);
+                if (!isNaN(currentNum) && currentNum > deletedNum) {
+                    let newNum = currentNum - 1;
+                    await pool.query("UPDATE products SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
+                    await pool.query("UPDATE stock SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
+                }
+            }
+        }
+
+        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef} និងបានរំកិលលេខ Ref ផ្សេងទៀតក្នុងប្រព័ន្ធរួចរាល់ហើយ។\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+    } catch (err) {
+        ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
+    }
+});
 
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
