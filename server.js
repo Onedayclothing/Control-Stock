@@ -23,13 +23,22 @@ const bot = new Telegraf(BOT_TOKEN);
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
+// មុខងារកត់ត្រា Admin Chat ID ស្វ័យប្រវត្តិ
+async function registerAdmin(chatId) {
+    try {
+        await pool.query("INSERT INTO admins (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING", [chatId]);
+    } catch (err) {
+        console.error("Error registering admin:", err);
+    }
+}
+
 // បង្កើត Folder videos បើមិនទាន់មាន
 const videoDir = path.join(__dirname, 'videos');
 if (!fs.existsSync(videoDir)) {
     fs.mkdirSync(videoDir, { recursive: true });
 }
 
-// បង្កើត Table ស្តុក និង ផលិតផលស្វ័យប្រវត្តិពេលចាប់ផ្តើម Server
+// បង្កើត Table ស្តុក ផលិតផល អដ្មេន និង ការកុម្មង់ ស្វ័យប្រវត្តិពេលចាប់ផ្តើម Server
 async function initDB() {
     try {
         await pool.query(`
@@ -52,6 +61,23 @@ async function initDB() {
                 stock_qty INT,
                 price DECIMAL(10,2),
                 UNIQUE(ref, size)
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admins (
+                chat_id BIGINT PRIMARY KEY
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY,
+                customer TEXT,
+                items JSONB,
+                total DECIMAL(10,2),
+                status VARCHAR(50) DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
         
@@ -171,41 +197,104 @@ app.post('/api/admin/add-product', async (req, res) => {
     }
 });
 
+// Endpoint កុម្មង់ទំនិញ (Order + Telegram Notification + Auto Stock Deduction)
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
     try {
-        for (let key in items) {
-            let item = items[key];
-            let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
-            let cleanSize = item.size.trim().toUpperCase();
-            
-            let check = await pool.query(
-                "SELECT stock_qty FROM stock WHERE UPPER(ref) = $1 AND UPPER(size) = $2",
-                [cleanRef, cleanSize]
-            );
-            
-            if (check.rows.length > 0) {
-                let currentStock = check.rows[0].stock_qty;
-                if (currentStock < item.qty) {
-                    return res.json({ 
-                        success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ស្តុកមិនគ្រប់គ្រាន់ទេ!` 
-                    });
-                }
-            } else {
-                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
-            }
-        }
+        let totalAmount = 0;
+        let itemsSummary = [];
 
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
             let cleanSize = item.size.trim().toUpperCase();
+            let qty = parseInt(item.qty) || 1;
+            
+            let check = await pool.query(
+                "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2",
+                [cleanRef, cleanSize]
+            );
+            
+            if (check.rows.length > 0) {
+                let currentStock = check.rows[0].stock_qty;
+                if (currentStock < qty) {
+                    return res.json({ 
+                        success: false, 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ស្តុកមិនគ្រប់គ្រាន់ទេ!` 
+                    });
+                }
+                let itemTotal = parseFloat(check.rows[0].price) * qty;
+                totalAmount += itemTotal;
+                itemsSummary.push({
+                    ref: cleanRef,
+                    title: check.rows[0].title_km,
+                    size: cleanSize,
+                    qty: qty,
+                    price: check.rows[0].price,
+                    total: itemTotal
+                });
+            } else {
+                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
+            }
+        }
+
+        // រក្សាទុកកុម្មង់ចូល Database (orders table)
+        let orderRes = await pool.query(
+            "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
+            [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
+        );
+        let orderId = orderRes.rows[0].id;
+
+        // កាត់ស្តុកស្វ័យប្រវត្តិ
+        for (let key in items) {
+            let item = items[key];
+            let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
+            let cleanSize = item.size.trim().toUpperCase();
+            let qty = parseInt(item.qty) || 1;
             
             await pool.query(
                 "UPDATE stock SET stock_qty = stock_qty - $1 WHERE UPPER(ref) = $2 AND UPPER(size) = $3",
-                [item.qty, cleanRef, cleanSize]
+                [qty, cleanRef, cleanSize]
             );
+        }
+
+        // ផ្ញើសារជូនដំណឹងទៅ Admin ទាំងអស់តាម Telegram
+        let adminsRes = await pool.query("SELECT chat_id FROM admins");
+        if (adminsRes.rows.length > 0) {
+            let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
+            let custPhone = customer?.phone || customer?.phoneNumber || 'គ្មានលេខទូរស័ព្ទ';
+            let custAddress = customer?.address || customer?.location || 'គ្មានអាសយដ្ឋាន';
+
+            let msg = `📦 **មានការកុម្មង់ទំនិញថ្មី!** (#Order ID: ${orderId})\n\n`;
+            msg += `👤 **ព័ត៌មានអតិថិជន:**\n`;
+            msg += `- ឈ្មោះ: ${custName}\n`;
+            msg += `- លេខទូរស័ព្ទ: ${custPhone}\n`;
+            msg += `- អាសយដ្ឋាន: ${custAddress}\n\n`;
+            msg += `🛒 **ទំនិញកុម្មង់:**\n`;
+
+            itemsSummary.forEach((it, idx) => {
+                msg += `${idx + 1}. Ref: ${it.ref} - ${it.title} (Size: ${it.size}) x ${it.qty} = $${Number(it.total).toFixed(2)}\n`;
+            });
+
+            msg += `\n💵 **សរុបទឹកប្រាក់:** $${Number(totalAmount).toFixed(2)}`;
+
+            for (let adm of adminsRes.rows) {
+                try {
+                    await bot.telegram.sendMessage(adm.chat_id, msg, {
+                        parse_mode: 'Markdown',
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    { text: '✅ Confirm Order', callback_data: `confirm_order_${orderId}` },
+                                    { text: '❌ Cancel & Restore Stock', callback_data: `cancel_order_${orderId}` }
+                                ]
+                            ]
+                        }
+                    });
+                } catch (e) {
+                    console.error("Failed to notify admin:", adm.chat_id, e.message);
+                }
+            }
         }
 
         res.json({ success: true, message: "ការកុម្មង់បានជោគជ័យ និងកាត់ស្តុកស្វ័យប្រវត្តិរួចរាល់!" });
@@ -214,11 +303,18 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// --- TELEGRAM BOT COMMANDS & CHAT FLOW ---
+// --- TELEGRAM BOT COMMANDS & CALLBACKS ---
+
+// Start Command (កត់ត្រា Admin)
+bot.start(async (ctx) => {
+    await registerAdmin(ctx.chat.id);
+    ctx.reply('👋 សួស្តី Admin! ប៊ូតុង និងប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។\n\nវាយពាក្យ /admin ដើម្បីបើក Mini App ឬ /stock ដើម្បីឆែកស្តុក។');
+});
 
 // 1. បន្ថែមទំនិញថ្មី (Auto Ref)
 bot.command('AddProduct', async (ctx) => {
     const chatId = ctx.chat.id;
+    await registerAdmin(chatId);
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -231,13 +327,14 @@ bot.command('AddProduct', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
 // 2. កែប្រែទំនិញដែលមានស្រាប់ (Edit Product តាម Ref ឧ. /EditRef7)
 bot.hears(/^\/editref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -256,6 +353,8 @@ bot.hears(/^\/editref(.+)/i, async (ctx) => {
 
 // 3. ឆែកស្តុកទំនិញរហ័សតាម Bot (/stock)
 bot.command('stock', async (ctx) => {
+    const chatId = ctx.chat.id;
+    await registerAdmin(chatId);
     try {
         let query = `
             SELECT p.ref, p.title_km, s.size, s.stock_qty
@@ -275,7 +374,7 @@ bot.command('stock', async (ctx) => {
                 currentRef = row.ref;
                 msg += `\n🏷️ **Ref: ${row.ref} - ${row.title_km}**\n`;
             }
-            msg += `   • Size ${row.size}: ${row.stock_qty} នាក់/អង\n`;
+            msg += `   • Size ${row.size}: ${row.stock_qty} អង\n`;
         });
 
         ctx.reply(msg, { parse_mode: 'Markdown' });
@@ -296,6 +395,8 @@ bot.command('cancel', (ctx) => {
 
 // 4. លុបទំនិញ និងរំកិលលេខ Ref ស្វ័យប្រវត្តិ (Auto-Shift)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
+    let chatId = ctx.chat.id;
+    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -334,7 +435,8 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 });
 
 // បង្កើតពាក្យបញ្ជា /admin
-bot.command('admin', (ctx) => {
+bot.command('admin', async (ctx) => {
+    await registerAdmin(ctx.chat.id);
     ctx.reply('🛠️ ចុចប៊ូតុងខាងក្រោមដើម្បីបើក Admin Mini App សម្រាប់គ្រប់គ្រងស្តុកហាង OneDay Clothing:', {
         reply_markup: {
             inline_keyboard: [
@@ -345,6 +447,60 @@ bot.command('admin', (ctx) => {
             ]
         }
     });
+});
+
+// Handling Order Confirmation (Admin clicks Confirm)
+bot.action(/^confirm_order_(.+)$/, async (ctx) => {
+    let orderId = ctx.match[1];
+    try {
+        await pool.query("UPDATE orders SET status = 'CONFIRMED' WHERE id = $1", [orderId]);
+        await ctx.answerCbQuery('✅ បានបញ្ជាក់ការកុម្មង់រួចរាល់!');
+        let originalText = ctx.callbackQuery.message.text;
+        await ctx.editMessageText(originalText + '\n\nstatus: ✅ Confirmed (បានបញ្ជាក់ការកុម្មង់)', {
+            reply_markup: { inline_keyboard: [] }
+        });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា: ' + err.message);
+    }
+});
+
+// Handling Order Cancellation & Stock Restore (Admin clicks Cancel & Restores Stock)
+bot.action(/^cancel_order_(.+)$/, async (ctx) => {
+    let orderId = ctx.match[1];
+    try {
+        let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+        if (orderRes.rows.length === 0) {
+            return ctx.answerCbQuery('❌ រកមិនឃើញព័ត៌មានកុម្មង់នេះទេ!');
+        }
+        let order = orderRes.rows[0];
+        if (order.status === 'CANCELLED') {
+            return ctx.answerCbQuery('⚠️ ការកុម្មង់នេះត្រូវបានលុបចោលរួចហើយ!');
+        }
+
+        let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+
+        // ស្តារស្តុកទំនិញនីមួយៗចូលវិញស្វ័យប្រវត្តិ
+        for (let key in items) {
+            let item = items[key];
+            let cleanRef = String(item.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
+            let cleanSize = String(item.size).trim().toUpperCase();
+            let qty = parseInt(item.qty) || 0;
+
+            await pool.query(
+                "UPDATE stock SET stock_qty = stock_qty + $1 WHERE UPPER(ref) = $2 AND UPPER(size) = $3",
+                [qty, cleanRef, cleanSize]
+            );
+        }
+
+        await pool.query("UPDATE orders SET status = 'CANCELLED' WHERE id = $1", [orderId]);
+        await ctx.answerCbQuery('❌ បានបដិសេធ និងសងស្តុកចូលវិញជោគជ័យ!');
+        let originalText = ctx.callbackQuery.message.text;
+        await ctx.editMessageText(originalText + '\n\nstatus: ❌ Cancelled & Stock Restored (បដិសេធ និងសងស្តុកចូលស្តុកវិញរួចរាល់)', {
+            reply_markup: { inline_keyboard: [] }
+        });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា: ' + err.message);
+    }
 });
 
 // Handle Button Click for Gender Selection
@@ -423,6 +579,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
 // Unified Message Handler (គ្រប់គ្រង Text និង Video Upload)
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
+    await registerAdmin(chatId);
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
 
