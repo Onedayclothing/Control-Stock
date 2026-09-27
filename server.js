@@ -204,7 +204,6 @@ app.get('/api/stock', async (req, res) => {
 app.post('/api/admin/update-stock', async (req, res) => {
     let { ref, size, qty, telegram_id } = req.body;
     
-    // ពិនិត្យមើលថាតើ User នេះជា Admin ផ្លូវការឬអត់
     if (!telegram_id || !(await isAdmin(telegram_id))) {
         return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
     }
@@ -226,7 +225,6 @@ app.post('/api/admin/update-stock', async (req, res) => {
 app.post('/api/admin/add-product', async (req, res) => {
     let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock, telegram_id } = req.body;
 
-    // ពិនិត្យមើលថាតើ User នេះជា Admin ផ្លូវការឬអត់
     if (!telegram_id || !(await isAdmin(telegram_id))) {
         return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
     }
@@ -470,7 +468,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
@@ -977,7 +975,7 @@ bot.on('message', async (ctx) => {
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
-            } else if (text.id || text.trim()) {
+            } else if (text.trim()) {
                 let inputUrl = text.trim();
                 videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
             } else {
@@ -999,8 +997,14 @@ bot.on('message', async (ctx) => {
     }
 });
 
-bot.launch();
-console.log('Telegram Bot started successfully...');
+// 🛠️ វិធីទី ១: លុប Webhook ចោល និងចាប់ផ្តើម Bot ឡើងវិញដោយ Polling ស្អាតល្អ
+bot.telegram.deleteWebhook().then(() => {
+    bot.launch();
+    console.log('Telegram Bot started successfully with polling...');
+}).catch((err) => {
+    console.error('Webhook deletion error:', err);
+    bot.launch();
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
