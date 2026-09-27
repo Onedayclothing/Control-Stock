@@ -480,7 +480,7 @@
                         <img src="images/IMG_5831.png" alt="Delivery Fee" class="delivery-img-icon" loading="lazy">
                         <span data-key="delivery_label">ថ្លៃដឹក (Delivery Fee)</span>
                     </span>
-                    <span>$2.00</span>
+                    <span id="delivery-fee-display">$2.00</span>
                 </div>
             </div>
 
@@ -582,7 +582,8 @@
 
     <script>
         const TELEGRAM_USERNAME = "OneDayClothingAgent";
-        const deliveryFee = 2.00;
+        let deliveryFee = 2.00;
+        let deliveryFeeText = "$2.00";
         const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
 
         let stockData = {};
@@ -698,6 +699,19 @@
                         cartIcons.forEach(icon => {
                             icon.src = settings.cart_icon_url;
                         });
+                    }
+
+                    if (settings.delivery_fee !== undefined) {
+                        let val = settings.delivery_fee.trim();
+                        let parsedNum = parseFloat(val);
+                        if (!isNaN(parsedNum)) {
+                            deliveryFee = parsedNum;
+                            deliveryFeeText = `$${parsedNum.toFixed(2)}`;
+                        } else {
+                            deliveryFee = 0;
+                            deliveryFeeText = val; // ករណីដាក់អត្ថបទ "តម្លៃដឹកទូទាត់ជាមួយហាង"
+                        }
+                        renderCart();
                     }
                 }
             } catch (error) {
@@ -1272,6 +1286,7 @@
             let cartList = document.getElementById('cart-list');
             let modalFooter = document.getElementById('modal-footer');
             let summaryBox = document.getElementById('summary-box');
+            let deliveryFeeDisplay = document.getElementById('delivery-fee-display');
             let totalItems = 0;
             let subtotalPrice = 0;
             let itemsHtml = '';
@@ -1316,6 +1331,10 @@
                 cartList.innerHTML = itemsHtml;
                 modalFooter.style.display = 'flex';
                 summaryBox.style.display = 'flex';
+            }
+
+            if (deliveryFeeDisplay) {
+                deliveryFeeDisplay.innerText = deliveryFeeText;
             }
 
             let grandTotal = subtotalPrice > 0 ? subtotalPrice + deliveryFee : 0;
@@ -1422,7 +1441,7 @@
 
                     message += `\n💰 សរុប\n`;
                     message += `• តម្លៃទំនិញ: $${subtotalPrice.toFixed(2)}\n`;
-                    message += `• ថ្លៃដឹកជញ្ជូន: $${deliveryFee.toFixed(2)}\n`;
+                    message += `• ថ្លៃដឹកជញ្ជូន: ${deliveryFeeText}\n`;
                     message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
 
                     window.location.href = `https://t.me/${TELEGRAM_USERNAME}?text=${encodeURIComponent(message)}`;
