@@ -17,7 +17,12 @@ process.on('uncaughtException', (error) => {
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Serve វេបសាយ និង admin.html ផ្ទាល់
+app.use(express.static('.')); // Serve វេបសាយ និង index.html ផ្ទាល់
+
+// 📌 បន្ថែម Route នេះ ដើម្បីบังคับឱ្យបើកហ្វាល index.html ពេលចូល Link លើកដំបូង
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ភ្ជាប់ Database ស្វ័យប្រវត្តិពី Railway
 const pool = new Pool({
