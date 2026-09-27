@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OneDay Clothing | Stock Controller (Admin)</title>
+    <title>OneDay Stock-Controller | Admin</title>
     
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -12,74 +12,76 @@
 
     <style>
         :root {
-            --primary: #0f172a;
-            --accent: #0284c7;
-            --accent-light: #e0f2fe;
-            --bg-color: #f8fafc;
-            --card-bg: #ffffff;
-            --border-color: #cbd5e1;
-            --text-muted: #64748b;
+            --primary: #f8fafc;
+            --accent: #38bdf8;
+            --accent-light: #1e293b;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-muted: #94a3b8;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Kantumruy Pro', sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Kantumruy Pro', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background-color: var(--bg-color); color: var(--primary); padding: 12px; padding-bottom: 80px; }
 
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: var(--card-bg); padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border-color); }
-        .logo { font-size: 16px; font-weight: 800; color: var(--accent); }
-        .admin-badge { font-size: 10px; font-weight: 700; background: var(--accent-light); color: var(--accent); padding: 4px 10px; border-radius: 8px; }
+        .logo-box { display: flex; flex-direction: column; }
+        .logo { font-size: 15px; font-weight: 800; color: var(--primary); }
+        .sub-badge { font-size: 9px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+        .btn-header { background: var(--border-color); color: var(--primary); border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
-        .section-title { font-size: 14px; font-weight: 800; margin: 16px 0 8px; color: var(--primary); display: flex; justify-content: space-between; align-items: center; }
+        .product-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .prod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .prod-title { font-size: 13px; font-weight: 800; color: var(--primary); }
+        .prod-price { font-size: 13px; font-weight: 900; color: var(--accent); }
+
+        .size-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; }
+        .size-label { font-size: 12px; font-weight: 700; color: var(--text-muted); }
         
-        .product-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .prod-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .prod-name { font-size: 13px; font-weight: 700; }
-        .prod-ref { font-size: 10px; font-weight: 800; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; }
+        .qty-controls { display: flex; align-items: center; gap: 8px; }
+        .btn-qty { background: var(--card-bg); color: var(--accent); border: 1px solid var(--border-color); width: 32px; height: 32px; border-radius: 8px; font-size: 16px; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .btn-qty:active { background: var(--accent); color: white; }
         
-        .sizes-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-        .size-box { background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 4px; text-align: center; }
-        .size-name { font-size: 9px; font-weight: 800; color: var(--text-muted); margin-bottom: 2px; }
-        .size-input { width: 100%; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; font-weight: 800; text-align: center; padding: 4px 0; background: white; outline: none; }
+        .size-input { width: 45px; height: 32px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; font-weight: 800; text-align: center; background: var(--card-bg); color: var(--primary); outline: none; }
         .size-input:focus { border-color: var(--accent); }
 
-        .btn-save { background: var(--accent); color: white; border: none; width: 100%; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12px; margin-top: 8px; cursor: pointer; }
-        
-        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: rgba(15, 23, 42, 0.9); color: white; padding: 8px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; transition: transform 0.3s ease; z-index: 1000; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: rgba(56, 189, 248, 0.95); color: #0f172a; padding: 8px 18px; border-radius: 20px; font-size: 11px; font-weight: 800; transition: transform 0.3s ease; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
         .toast.show { transform: translateX(-50%) translateY(0); }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="logo">OneDay <span>Stock Admin</span></div>
-        <div class="admin-badge" id="adminStatus">🔒 Admin Connected</div>
-    </div>
-
-    <div class="section-title">
-        <span>📦 បញ្ជីស្តុកទំនិញទាំងអស់</span>
-        <span id="prodCount" style="font-size: 11px; color: var(--text-muted);">0 មុខទំនិញ</span>
+        <div class="logo-box">
+            <div class="logo">Oneday Stock-Controller</div>
+            <div class="sub-badge">mini app</div>
+        </div>
+        <div class="header-actions">
+            <button class="btn-header" onclick="loadAdminProducts()">🔄 Refresh</button>
+        </div>
     </div>
 
     <div id="adminProductList">
-        <div style="text-align: center; color: var(--text-muted); padding: 20px;">កំពុងទាញយកទិន្នន័យ...</div>
+        <div style="text-align: center; color: var(--text-muted); padding: 30px;">កំពុងទាញយកទិន្នន័យស្តុក...</div>
     </div>
 
     <div id="toast" class="toast">បានកែប្រែស្តុកជោគជ័យ!</div>
 
     <script>
-        // បើក Telegram WebApp ឱ្យពេញអេក្រង់
         const tg = window.Telegram?.WebApp;
         if (tg) {
             tg.expand();
         }
 
-        const API_BASE = ""; // ប្រើ Relative path ព្រោះហ្វាលនេះស្ថិតនៅលើ Server เดียวគ្នា
+        const API_BASE = ""; 
 
         async function loadAdminProducts() {
             try {
                 let res = await fetch(`${API_BASE}/api/products`);
                 let products = await res.json();
                 
-                document.getElementById('prodCount').innerText = `${products.length} មុខទំនិញ`;
                 let container = document.getElementById('adminProductList');
                 container.innerHTML = '';
 
@@ -92,9 +94,13 @@
                         let found = sizes.find(s => s.size.toUpperCase() === sz);
                         let qty = found ? found.stock_qty : 0;
                         sizesHtml += `
-                            <div class="size-box">
-                                <div class="size-name">${sz}</div>
-                                <input type="number" class="size-input" id="qty-${prod.ref}-${sz}" value="${qty}" min="0">
+                            <div class="size-row">
+                                <div class="size-label">Size: ${sz}</div>
+                                <div class="qty-controls">
+                                    <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', -1)">-</button>
+                                    <input type="number" class="size-input" id="qty-${prod.ref}-${sz}" value="${qty}" min="0" onchange="updateStockAPI('${prod.ref}', '${sz}')">
+                                    <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', 1)">+</button>
+                                </div>
                             </div>
                         `;
                     });
@@ -102,49 +108,55 @@
                     let card = document.createElement('div');
                     card.className = 'product-card';
                     card.innerHTML = `
-                        <div class="prod-info">
-                            <div class="prod-name">${prod.title_km}</div>
-                            <div class="prod-ref">Ref: ${prod.ref}</div>
+                        <div class="prod-header">
+                            <div class="prod-title">Ref: ${prod.ref} - ${prod.title_km}</div>
+                            <div class="prod-price">$${parseFloat(prod.price).toFixed(2)}</div>
                         </div>
-                        <div class="sizes-row">
+                        <div>
                             ${sizesHtml}
                         </div>
-                        <button class="btn-save" onclick="updateProductStock('${prod.ref}')">💾 រក្សាទុកការផ្លាស់ប្តូរ (Ref ${prod.ref})</button>
                     `;
                     container.appendChild(card);
                 });
             } catch (err) {
                 console.error("Error loading products:", err);
-                document.getElementById('adminProductList').innerHTML = `<div style="color: red; text-align: center;">បរាជ័យក្នុងការតភ្ជាប់ Server!</div>`;
+                document.getElementById('adminProductList').innerHTML = `<div style="color: #ef4444; text-align: center;">បរាជ័យក្នុងការតភ្ជាប់ Server!</div>`;
             }
         }
 
-        async function updateProductStock(ref) {
-            const sizeList = ['S', 'M', 'L', 'XL', 'XXL'];
-            let successCount = 0;
+        async function changeQty(ref, size, delta) {
+            let input = document.getElementById(`qty-${ref}-${size}`);
+            if (!input) return;
+            
+            let currentVal = parseInt(input.value) || 0;
+            let newVal = currentVal + delta;
+            if (newVal < 0) newVal = 0;
+            
+            input.value = newVal;
+            await sendStockUpdate(ref, size, newVal);
+        }
 
-            for (let sz of sizeList) {
-                let input = document.getElementById(`qty-${ref}-${sz}`);
-                if (input) {
-                    let qty = parseInt(input.value) || 0;
-                    try {
-                        let res = await fetch(`${API_BASE}/api/admin/update-stock`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ref, size: sz, qty })
-                        });
-                        let data = await res.json();
-                        if (data.success) successCount++;
-                    } catch (e) {
-                        console.error(`Failed to update ${ref} Size ${sz}:`, e);
-                    }
+        async function updateStockAPI(ref, size) {
+            let input = document.getElementById(`qty-${ref}-${size}`);
+            if (!input) return;
+            let qty = parseInt(input.value) || 0;
+            if (qty < 0) { qty = 0; input.value = 0; }
+            await sendStockUpdate(ref, size, qty);
+        }
+
+        async function sendStockUpdate(ref, size, qty) {
+            try {
+                let res = await fetch(`${API_BASE}/api/admin/update-stock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ref, size, qty })
+                });
+                let data = await res.json();
+                if (data.success) {
+                    showToast(`✅ Ref ${ref} (${size}) = ${qty}`);
                 }
-            }
-
-            if (successCount > 0) {
-                showToast(`✅ Ref ${ref} ត្រូវបានកែប្រែស្តុកជោគជ័យ!`);
-            } else {
-                alert("❌ មានបញ្ហាក្នុងការកែប្រែស្តុក!");
+            } catch (e) {
+                console.error(`Failed to update stock:`, e);
             }
         }
 
@@ -152,7 +164,7 @@
             let toast = document.getElementById('toast');
             toast.innerText = msg;
             toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2500);
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
