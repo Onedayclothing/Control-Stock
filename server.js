@@ -1384,5 +1384,9 @@ bot.telegram.setMyCommands([
 bot.launch();
 console.log('Telegram Bot started successfully...');
 
+// 🛑 ផ្តាច់ Bot Connection ស្អាតបាតពេល Server Restart / Stop ដើម្បីការពារបញ្ហា 409 Conflict
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
