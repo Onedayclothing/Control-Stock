@@ -449,7 +449,7 @@ bot.command('checkadmin', async (ctx) => {
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งนี้ได้!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារនេះបាន!');
     }
 
     try {
@@ -458,7 +458,7 @@ bot.command('checkadmin', async (ctx) => {
 
         let ownerText = ownerRes.rows.length > 0 ? (ownerRes.rows[0].username ? `@${ownerRes.rows[0].username}` : `ID: ${ownerRes.rows[0].chat_id}`) : 'មិនទាន់មាន';
         
-        let msg = `👑 **Owner (ម្ចាស់ហាង):** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីจัดการ:`;
+        let msg = `👑 **Owner :** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីផ្ទេរ Owner ឫ Kick:`;
 
         let inlineKeyboard = [];
         adminsRes.rows.forEach(adm => {
@@ -564,7 +564,7 @@ bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งបន្ថែម Admin បាន!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារបន្ថែម Admin បាន!');
     }
 
     let targetUsername = ctx.match[1].trim();
@@ -595,7 +595,7 @@ bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งដកសិទ្ធិ Admin បាន!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារដកសិទ្ធិ Admin បាន!');
     }
 
     let targetUsername = ctx.match[1].trim();
