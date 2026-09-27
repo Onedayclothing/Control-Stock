@@ -27,8 +27,8 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup
-const BOT_TOKEN = '8631007810:AAFMqgzc4UZyJQdbnTyWbacNT2GMt3iV1q8';
+// Telegram Bot Setup (Token ថ្មី)
+const BOT_TOKEN = process.env.BOT_TOKEN || '8631007810:AAFPb8QWKO9z807SXvE_GEZ9-CyACqgBRU0';
 const bot = new Telegraf(BOT_TOKEN);
 
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
@@ -452,7 +452,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
