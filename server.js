@@ -126,6 +126,8 @@ async function initDB() {
         `);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE;`);
+        // 🛠️ ដោះស្រាយបញ្ហា chat_id NOT NULL ដោយអនុញ្ញាតឱ្យវាជា NULL បានពេល add តាម username
+        await pool.query(`ALTER TABLE admins ALTER COLUMN chat_id DROP NOT NULL;`);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS banned_admins (
@@ -436,7 +438,7 @@ bot.command('setmeowner', async (ctx) => {
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
             [chatId, username]
         );
-        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។ ឥឡូវនេះប្រព័ន្ធត្រូវបានລុក (Lock) សុវត្ថិភាព គ្មាននរណាម្នាក់អាចដណ្តើមបានទៀតទេ។');
+        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។ ឥឡូវនេះប្រព័ន្ធត្រូវបានលុក (Lock) សុវត្ថិភាព គ្មាននរណាម្នាក់អាចដណ្តើមបានទៀតទេ។');
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
