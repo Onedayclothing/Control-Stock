@@ -126,14 +126,7 @@ async function initDB() {
         `);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE;`);
-        
-        // 🛠️ ដោះស្រាយបញ្ហា Constraint យ៉ាងម៉ត់ចត់
         await pool.query(`ALTER TABLE admins ALTER COLUMN chat_id DROP NOT NULL;`);
-        try {
-            await pool.query(`ALTER TABLE admins ADD CONSTRAINT admins_username_unique UNIQUE (username);`);
-        } catch (e) {
-            // Trường hợp constraint already exists
-        }
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS banned_admins (
@@ -456,7 +449,7 @@ bot.command('checkadmin', async (ctx) => {
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งนี้បាន!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งนี้ได้!');
     }
 
     try {
@@ -565,7 +558,7 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
     }
 });
 
-// ➕ បន្ថែម Admin (ប្រើ ON CONFLICT (username))
+// ➕ បន្ថែម Admin (កែសម្រួលថ្មីដោយប្រើប្រាស់ Check Existence ផ្ទាល់ មិនបារម្ភរឿង ON CONFLICT Error ទៀតទេ)
 bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -577,10 +570,14 @@ bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     let targetUsername = ctx.match[1].trim();
     try {
         await pool.query("DELETE FROM banned_admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        await pool.query(
-            "INSERT INTO admins (username, is_owner) VALUES ($1, FALSE) ON CONFLICT (username) DO UPDATE SET is_owner = FALSE",
-            [targetUsername]
-        );
+        
+        let existing = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        if (existing.rows.length > 0) {
+            await pool.query("UPDATE admins SET is_owner = FALSE WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        } else {
+            await pool.query("INSERT INTO admins (username, is_owner) VALUES ($1, FALSE)", [targetUsername]);
+        }
+
         ctx.reply(`✅ បានបន្ថែម ឬ Reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
