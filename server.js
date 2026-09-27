@@ -522,54 +522,6 @@ bot.action('web_cancel', async (ctx) => {
     await ctx.editMessageText('❌ បានលុបចោលដំណើរការកំណត់ Website រួចរាល់។');
 });
 
-bot.command('report', async (ctx) => {
-    const chatId = ctx.chat.id;
-    const username = ctx.from.username || '';
-
-    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
-
-    try {
-        async function getStats(timeCondition) {
-            let purchRes = await pool.query(`SELECT COALESCE(SUM(qty), 0) as total_qty, COALESCE(SUM(total_cost), 0) as total_spent FROM purchases WHERE ${timeCondition}`);
-            let ordersRes = await pool.query(`SELECT items FROM orders WHERE status = 'CONFIRMED' AND ${timeCondition}`);
-
-            let soldQty = 0, totalRevenue = 0, totalProfit = 0;
-            ordersRes.rows.forEach(ord => {
-                let items = typeof ord.items === 'string' ? JSON.parse(ord.items) : ord.items;
-                if (Array.isArray(items)) {
-                    items.forEach(it => {
-                        let q = parseInt(it.qty || 0);
-                        soldQty += q;
-                        totalRevenue += parseFloat(it.total || 0);
-                        totalProfit += parseFloat(it.profit || 0);
-                    });
-                }
-            });
-
-            return {
-                purchasedQty: parseInt(purchRes.rows[0].total_qty),
-                totalSpent: parseFloat(purchRes.rows[0].total_spent),
-                soldQty, totalRevenue, totalProfit
-            };
-        }
-
-        let todayStats = await getStats("DATE(created_at) = CURRENT_DATE");
-        let weekStats = await getStats("created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)");
-        let monthStats = await getStats("DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_TIMESTAMP)");
-        let yearStats = await getStats("DATE_TRUNC('year', created_at) = DATE_TRUNC('year', CURRENT_TIMESTAMP)");
-
-        let msg = `📊 **របាយការណ៍ហិរញ្ញវត្ថុ និងស្តុក (Financial Report)**\n\n`;
-        msg += `📅 **ថ្ងៃនេះ (Today):**\n• ទិញចូល: ${todayStats.purchasedQty} ឯកតា (ចំណាយ: $${todayStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${todayStats.soldQty} ឯកតា (ចំណូល: $${todayStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${todayStats.totalProfit.toFixed(2)}**\n\n`;
-        msg += `📅 **សប្តាហ៍នេះ (This Week):**\n• ទិញចូល: ${weekStats.purchasedQty} ឯកតា (ចំណាយ: $${weekStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${weekStats.soldQty} ឯកតា (ចំណូល: $${weekStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${weekStats.totalProfit.toFixed(2)}**\n\n`;
-        msg += `📅 **ខែនេះ (This Month):**\n• ទិញចូល: ${monthStats.purchasedQty} ឯកតា (ចំណាយ: $${monthStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${monthStats.soldQty} ឯកតា (ចំណូល: $${monthStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${monthStats.totalProfit.toFixed(2)}**\n\n`;
-        msg += `📅 **ឆ្នាំនេះ (This Year):**\n• ទិញចូល: ${yearStats.purchasedQty} ឯកតា (ចំណាយ: $${yearStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${yearStats.soldQty} ឯកតា (ចំណូល: $${yearStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${yearStats.totalProfit.toFixed(2)}**`;
-
-        ctx.reply(msg, { parse_mode: 'Markdown' });
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
-    }
-});
-
 bot.command('setmeowner', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1278,7 +1230,6 @@ bot.on('message', async (ctx) => {
 bot.telegram.setMyCommands([
     { command: 'start', description: 'ចាប់ផ្តើមប្រព័ន្ធ / ផ្ទៀងផ្ទាត់ Password' },
     { command: 'website', description: '🎬 កែប្រែ Cover, Video Animation & Icons Website' },
-    { command: 'report', description: '📊 មើលរបាយការណ៍ ចំណាយ ចំណូល និងប្រាក់ចំណេញ' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
