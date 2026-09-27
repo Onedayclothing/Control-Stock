@@ -27,7 +27,7 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup ជាមួយ Token ថ្មីដែលបានអាប់ដេត
+// Telegram Bot Setup
 const BOT_TOKEN = '8631007810:AAFMqgzc4UZyJQdbnTyWbacNT2GMt3iV1q8';
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -96,7 +96,8 @@ async function initDB() {
                 gender VARCHAR(20),
                 type VARCHAR(20),
                 video_url VARCHAR(255),
-                price DECIMAL(10,2)
+                price DECIMAL(10,2),
+                cost_price DECIMAL(10,2) DEFAULT 0
             );
         `);
 
@@ -104,6 +105,7 @@ async function initDB() {
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_zh VARCHAR(255);`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_en TEXT;`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_zh TEXT;`);
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2) DEFAULT 0;`);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS stock (
@@ -113,6 +115,25 @@ async function initDB() {
                 stock_qty INT,
                 price DECIMAL(10,2),
                 UNIQUE(ref, size)
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS purchases (
+                id SERIAL PRIMARY KEY,
+                ref VARCHAR(50),
+                size VARCHAR(10),
+                qty INT,
+                cost_price DECIMAL(10,2),
+                total_cost DECIMAL(10,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS website_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                value TEXT
             );
         `);
 
@@ -149,19 +170,19 @@ async function initDB() {
         let checkProd = await pool.query("SELECT COUNT(*) FROM products");
         if (parseInt(checkProd.rows[0].count) === 0) {
             const initialProducts = [
-                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', 15.00],
-                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', 6.00],
-                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', 20.00],
-                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', 7.00],
-                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', 12.00],
-                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00]
+                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', 15.00, 10.00],
+                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', 6.00, 3.50],
+                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', 20.00, 12.00],
+                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', 7.00, 4.00],
+                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', 12.00, 7.00],
+                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00, 11.00]
             ];
             for (let prod of initialProducts) {
                 let tTitle = await autoTranslate(prod[1]);
                 let tDesc = await autoTranslate(prod[2]);
                 await pool.query(
-                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (ref) DO NOTHING",
-                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6]]
+                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (ref) DO NOTHING",
+                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6], prod[7]]
                 );
             }
         }
@@ -191,6 +212,18 @@ async function initDB() {
 initDB();
 
 // --- API ENDPOINTS ---
+
+app.get('/api/website-settings', async (req, res) => {
+    try {
+        let result = await pool.query("SELECT * FROM website_settings");
+        let settings = {};
+        result.rows.forEach(r => settings[r.key] = r.value);
+        res.json(settings);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/products', async (req, res) => {
     try {
         const query = `
@@ -243,21 +276,22 @@ app.post('/api/admin/update-stock', async (req, res) => {
 });
 
 app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
+    let { ref, title_km, desc_km, gender, type, video_url, price, cost_price, initial_stock } = req.body;
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
+        let parsedCost = parseFloat(cost_price) || 0;
         let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 0;
 
         let tTitle = await autoTranslate(title_km);
         let tDesc = await autoTranslate(desc_km || '');
 
         await pool.query(
-            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11`,
-            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', parsedPrice]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11, cost_price = $12`,
+            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', parsedPrice, parsedCost]
         );
 
         let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -271,7 +305,14 @@ app.post('/api/admin/add-product', async (req, res) => {
             );
         }
 
-        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែម និងបកប្រែស្វ័យប្រវត្តិជោគជ័យ!` });
+        if (defaultQty > 0) {
+            await pool.query(
+                "INSERT INTO purchases (ref, size, qty, cost_price, total_cost) VALUES ($1, 'ALL', $2, $3, $4)",
+                [cleanRef, defaultQty * sizes.length, parsedCost, defaultQty * sizes.length * parsedCost]
+            );
+        }
+
+        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែមជោគជ័យ!` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -294,7 +335,7 @@ app.post('/api/order', async (req, res) => {
             let qty = parseInt(item.qty) || 1;
             
             let check = await client.query(
-                "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
+                "SELECT s.stock_qty, p.title_km, p.price, p.cost_price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
                 [cleanRef, cleanSize]
             );
             
@@ -305,18 +346,24 @@ app.post('/api/order', async (req, res) => {
                     client.release();
                     return res.json({ 
                         success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ទើបតែត្រូវអតិថិជនផ្សេងកុម្មង់ដាច់ស្តុកមុននេះបន្តិចបន្តួច!` 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ដាច់ស្តុក!` 
                     });
                 }
-                let itemTotal = parseFloat(check.rows[0].price) * qty;
+                let sellPrice = parseFloat(check.rows[0].price);
+                let costPrice = parseFloat(check.rows[0].cost_price || 0);
+                let itemTotal = sellPrice * qty;
+                let itemProfit = (sellPrice - costPrice) * qty;
+
                 totalAmount += itemTotal;
                 itemsSummary.push({
                     ref: cleanRef,
                     title: check.rows[0].title_km,
                     size: cleanSize,
                     qty: qty,
-                    price: check.rows[0].price,
-                    total: itemTotal
+                    price: sellPrice,
+                    cost_price: costPrice,
+                    total: itemTotal,
+                    profit: itemProfit
                 });
             } else {
                 await client.query('ROLLBACK');
@@ -388,9 +435,7 @@ app.post('/api/order', async (req, res) => {
                         parse_mode: 'Markdown',
                         reply_markup: { inline_keyboard: inlineKeyboard }
                     });
-                } catch (e) {
-                    console.error("Failed to notify admin:", adm.chat_id, e.message);
-                }
+                } catch (e) {}
             }
         }
 
@@ -412,26 +457,126 @@ bot.start(async (ctx) => {
     let authorized = await isAdminUser(chatId, username);
     if (authorized) {
         if (username) {
-            // អាប់ដេត chat_id ឱ្យត្រូវគ្នាពេលគាត់ចូល Bot វិញ
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 👑 បញ្ជាសម្រាប់កំណត់ Owner
+// 🌐 ពាក្យបញ្ជា /website
+bot.command(['website', 'Website'], async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    userStates[chatId] = { action: 'WEBSITE' };
+
+    await ctx.reply('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់កែប្រែ៖', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
+                [{ text: '🎨 កែប្រែ UI Icons (Logo / Banner)', callback_data: 'web_edit_icon' }],
+                [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
+            ]
+        }
+    });
+});
+
+bot.action('web_edit_cover', async (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_COVER' };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🎬 **សូម Upload Video ឬ Image/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
+});
+
+bot.action('web_edit_icon', async (ctx) => {
+    const chatId = ctx.chat.id;
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🎨 **ជ្រើសរើស Icon ឬ Logo ដែលចង់កែប្រែ៖**', {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '🖼️ រូប Logo ហាង (Header Logo)', callback_data: 'web_set_icon_logo' }],
+                [{ text: '🛒 រូប Cart Icon', callback_data: 'web_set_icon_cart' }]
+            ]
+        }
+    });
+});
+
+bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
+    let type = ctx.match[1];
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: `WAITING_ICON_${type.toUpperCase()}` };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`🖼️ សូម Upload រូបភាពថ្មីសម្រាប់ **${type.toUpperCase()}**:`);
+});
+
+bot.action('web_cancel', async (ctx) => {
+    const chatId = ctx.chat.id;
+    delete userStates[chatId];
+    await ctx.answerCbQuery('❌ បានបោះបង់');
+    await ctx.editMessageText('❌ បានលុបចោលដំណើរការកំណត់ Website រួចរាល់។');
+});
+
+bot.command('report', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    try {
+        async function getStats(timeCondition) {
+            let purchRes = await pool.query(`SELECT COALESCE(SUM(qty), 0) as total_qty, COALESCE(SUM(total_cost), 0) as total_spent FROM purchases WHERE ${timeCondition}`);
+            let ordersRes = await pool.query(`SELECT items FROM orders WHERE status = 'CONFIRMED' AND ${timeCondition}`);
+
+            let soldQty = 0, totalRevenue = 0, totalProfit = 0;
+            ordersRes.rows.forEach(ord => {
+                let items = typeof ord.items === 'string' ? JSON.parse(ord.items) : ord.items;
+                if (Array.isArray(items)) {
+                    items.forEach(it => {
+                        let q = parseInt(it.qty || 0);
+                        soldQty += q;
+                        totalRevenue += parseFloat(it.total || 0);
+                        totalProfit += parseFloat(it.profit || 0);
+                    });
+                }
+            });
+
+            return {
+                purchasedQty: parseInt(purchRes.rows[0].total_qty),
+                totalSpent: parseFloat(purchRes.rows[0].total_spent),
+                soldQty, totalRevenue, totalProfit
+            };
+        }
+
+        let todayStats = await getStats("DATE(created_at) = CURRENT_DATE");
+        let weekStats = await getStats("created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)");
+        let monthStats = await getStats("DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_TIMESTAMP)");
+        let yearStats = await getStats("DATE_TRUNC('year', created_at) = DATE_TRUNC('year', CURRENT_TIMESTAMP)");
+
+        let msg = `📊 **របាយការណ៍ហិរញ្ញវត្ថុ និងស្តុក (Financial Report)**\n\n`;
+        msg += `📅 **ថ្ងៃនេះ (Today):**\n• ទិញចូល: ${todayStats.purchasedQty} ឯកតា (ចំណាយ: $${todayStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${todayStats.soldQty} ឯកតា (ចំណូល: $${todayStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${todayStats.totalProfit.toFixed(2)}**\n\n`;
+        msg += `📅 **សប្តាហ៍នេះ (This Week):**\n• ទិញចូល: ${weekStats.purchasedQty} ឯកតា (ចំណាយ: $${weekStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${weekStats.soldQty} ឯកតា (ចំណូល: $${weekStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${weekStats.totalProfit.toFixed(2)}**\n\n`;
+        msg += `📅 **ខែនេះ (This Month):**\n• ទិញចូល: ${monthStats.purchasedQty} ឯកតា (ចំណាយ: $${monthStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${monthStats.soldQty} ឯកតា (ចំណូល: $${monthStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${monthStats.totalProfit.toFixed(2)}**\n\n`;
+        msg += `📅 **ឆ្នាំនេះ (This Year):**\n• ទិញចូល: ${yearStats.purchasedQty} ឯកតា (ចំណាយ: $${yearStats.totalSpent.toFixed(2)})\n• លក់ចេញ: ${yearStats.soldQty} ឯកតា (ចំណូល: $${yearStats.totalRevenue.toFixed(2)})\n• ប្រាក់ចំណេញសុទ្ធ: **$${yearStats.totalProfit.toFixed(2)}**`;
+
+        ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
 bot.command('setmeowner', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
     try {
         let checkOwner = await pool.query("SELECT * FROM admins WHERE is_owner = TRUE");
-        if (checkOwner.rows.length > 0) {
-            return ctx.reply('⛔️ ប្រព័ន្ធមាន Owner ផ្លូវការរួចរាល់ហើយ!');
-        }
+        if (checkOwner.rows.length > 0) return ctx.reply('⛔️ ប្រព័ន្ធមាន Owner ផ្លូវការរួចរាល់ហើយ!');
 
         await pool.query(
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
@@ -443,21 +588,17 @@ bot.command('setmeowner', async (ctx) => {
     }
 });
 
-// 👑 คำสั่ง /checkadmin
 bot.command('checkadmin', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារនេះបាន!');
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារនេះបាន!');
 
     try {
         let ownerRes = await pool.query("SELECT username, chat_id FROM admins WHERE is_owner = TRUE");
         let adminsRes = await pool.query("SELECT username, chat_id FROM admins WHERE is_owner = FALSE OR is_owner IS NULL");
 
         let ownerText = ownerRes.rows.length > 0 ? (ownerRes.rows[0].username ? `@${ownerRes.rows[0].username}` : `ID: ${ownerRes.rows[0].chat_id}`) : 'មិនទាន់មាន';
-        
         let msg = `👑 **Owner :** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីផ្ទេរ Owner ឫ Kick:`;
 
         let inlineKeyboard = [];
@@ -467,14 +608,7 @@ bot.command('checkadmin', async (ctx) => {
             inlineKeyboard.push([{ text: `👤 ${uName}`, callback_data: `manage_adm_${rawUName}` }]);
         });
 
-        if (adminsRes.rows.length === 0) {
-            msg += `\n*(មិនទាន់មាន Admin ផ្សេងទៀតទេ)*`;
-        }
-
-        await ctx.reply(msg, {
-            parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: inlineKeyboard }
-        });
+        await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: inlineKeyboard } });
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -485,9 +619,7 @@ bot.action(/^manage_adm_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
 
     await ctx.answerCbQuery();
     await ctx.editMessageText(`⚙️ គ្រប់គ្រង Admin: **@${target}**\nតើអ្នកចង់ធ្វើអ្វីជាមួយ Account នេះ?`, {
@@ -508,9 +640,7 @@ bot.action(/^transfer_own_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
 
     try {
         await pool.query("UPDATE admins SET is_owner = FALSE WHERE chat_id = $1 OR LOWER(username) = LOWER($2)", [chatId, username]);
@@ -520,7 +650,6 @@ bot.action(/^transfer_own_(.+)$/, async (ctx) => {
         await ctx.editMessageText(`👑 បានផ្ទេរអំណាចជា Owner ទៅឱ្យ **@${target}** រួចរាល់ហើយ!`, { parse_mode: 'Markdown' });
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
-        await ctx.editMessageText(`❌ បរាជ័យក្នុងការផ្ទេរ: ${err.message}`);
     }
 });
 
@@ -529,22 +658,14 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
 
     try {
         let adminRec = await pool.query("SELECT chat_id, username, is_owner FROM admins WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target]);
-        
         if (adminRec.rows.length > 0) {
-            if (adminRec.rows[0].is_owner) {
-                return ctx.answerCbQuery('❌ មិនអាច Kick Owner បានទេ!', { show_alert: true });
-            }
+            if (adminRec.rows[0].is_owner) return ctx.answerCbQuery('❌ មិនអាច Kick Owner បានទេ!', { show_alert: true });
             let adm = adminRec.rows[0];
-            await pool.query(
-                "INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-                [adm.chat_id, adm.username]
-            );
+            await pool.query("INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2", [adm.chat_id, adm.username]);
             await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target]);
         } else {
             await pool.query("INSERT INTO banned_admins (username) VALUES ($1) ON CONFLICT DO NOTHING", [target]);
@@ -554,34 +675,25 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
         await ctx.editMessageText(`❌ បាន Kick និង Block **@${target}** រួចរាល់!`, { parse_mode: 'Markdown' });
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
-        await ctx.editMessageText(`❌ បរាជ័យក្នុងការ Kick: ${err.message}`);
     }
 });
 
-// ➕ បន្ថែម Admin (ប្រើប្រាស់ Temporary Negative chat_id ដើម្បីបំពេញ NOT NULL constraint យ៉ាងរលូន)
 bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារបន្ថែម Admin បាន!');
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារបន្ថែម Admin បាន!');
 
     let targetUsername = ctx.match[1].trim();
     try {
         await pool.query("DELETE FROM banned_admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        
-        // បង្កើត ID អវិជ្ជមានបណ្តោះអាសន្ន ដើម្បីបំពេញ NOT NULL constraint របស់ Table ដើម
         let tempChatId = -Math.floor(Date.now() + Math.random() * 1000);
 
         let existing = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         if (existing.rows.length > 0) {
             await pool.query("UPDATE admins SET is_owner = FALSE WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         } else {
-            await pool.query(
-                "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, FALSE)",
-                [tempChatId, targetUsername]
-            );
+            await pool.query("INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, FALSE)", [tempChatId, targetUsername]);
         }
 
         ctx.reply(`✅ បានបន្ថែម ឬ Reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
@@ -594,29 +706,22 @@ bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
-    if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារដកសិទ្ធិ Admin បាន!');
-    }
+    if (!await isOwnerUser(chatId, username)) return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់មុខងារដកសិទ្ធិ Admin បាន!');
 
     let targetUsername = ctx.match[1].trim();
     try {
         let targetCheck = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        if (targetCheck.rows.length > 0 && targetCheck.rows[0].is_owner) {
-            return ctx.reply('❌ មិនអាចលុបសិទ្ធិរបស់ Owner បានទេ!');
-        }
+        if (targetCheck.rows.length > 0 && targetCheck.rows[0].is_owner) return ctx.reply('❌ មិនអាចលុបសិទ្ធិរបស់ Owner បានទេ!');
 
         if (targetCheck.rows.length > 0) {
             let adm = targetCheck.rows[0];
-            await pool.query(
-                "INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-                [adm.chat_id, adm.username]
-            );
+            await pool.query("INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2", [adm.chat_id, adm.username]);
         } else {
             await pool.query("INSERT INTO banned_admins (username) VALUES ($1) ON CONFLICT DO NOTHING", [targetUsername]);
         }
 
         await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} និងទប់ស្កាត់មិនឱ្យចូលវិញរួចរាល់!`);
+        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} រួចរាល់!`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -645,12 +750,9 @@ bot.command('add', async (ctx) => {
 
 const cancelHandler = async (ctx) => {
     const chatId = ctx.chat.id;
-    const username = ctx.from.username || '';
-    if (!await isAdminUser(chatId, username)) return;
-
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
+        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់。');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
@@ -681,21 +783,20 @@ bot.hears(/^\/change(.+)/i, async (ctx) => {
 async function handleEditRefSelection(ctx, chatId, cleanRef) {
     try {
         let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-        if (check.rows.length === 0) {
-            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
-        }
+        if (check.rows.length === 0) return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
         let prod = check.rows[0];
 
         userStates[chatId] = { action: 'CHANGE', step: 'SELECT_FIELD', data: { ref: cleanRef } };
 
-        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n• ឈ្មោះ: ${prod.title_km}\n• តម្លៃ: $${prod.price}\n\nសូមជ្រើសរើសផ្នែកដែលចង់កែប្រែ៖`;
+        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n• ឈ្មោះ: ${prod.title_km}\n• តម្លៃលក់: $${prod.price}\n• ថ្លៃដើម: $${prod.cost_price}\n\nសូមជ្រើសរើសផ្នែកដែលចង់កែប្រែ៖`;
 
         await ctx.reply(msg, {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
-                    [{ text: '💵 កែប្រែតម្លៃ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
+                    [{ text: '💵 កែប្រែតម្លៃលក់ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
+                    [{ text: '🏷️ កែប្រែថ្លៃដើម (Cost Price)', callback_data: `edit_f_cost_${cleanRef}` }],
                     [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
                     [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
                     [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
@@ -708,14 +809,14 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
     }
 }
 
-bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
+bot.action(/^edit_f_(title|price|cost|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
     let field = ctx.match[1];
     let ref = ctx.match[2];
     let chatId = ctx.chat.id;
 
     if (field === 'cancel') {
         delete userStates[chatId];
-        await ctx.answerCbQuery('❌ បានបោះបង់ការកែប្រែ');
+        await ctx.answerCbQuery('❌ បានបោះបង់');
         return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់。');
     }
 
@@ -740,7 +841,8 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     
     let promptText = '';
     if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃលក់ថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'cost') promptText = `🏷️ សូមសរសេរថ្លៃដើមថ្មីសម្រាប់ Ref ${ref} (ឧ. 10.00):`;
     else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
 
@@ -759,7 +861,6 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
         await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់。`);
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
-        await ctx.editMessageText(`❌ បរាជ័យ: ${err.message}`);
     }
 });
 
@@ -770,8 +871,6 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
-
-    if (!cleanRef) return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញ (ឧ. /deleteref7)');
 
     try {
         let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
@@ -788,6 +887,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
         let deletedNum = parseInt(cleanRef);
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
+        await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
         if (!isNaN(deletedNum)) {
@@ -798,6 +898,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
                     let newNum = currentNum - 1;
                     await pool.query("UPDATE products SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
                     await pool.query("UPDATE stock SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
+                    await pool.query("UPDATE purchases SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
                 }
             }
         }
@@ -920,15 +1021,16 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
         let parsedPrice = parseFloat(state.data.price) || 0;
+        let parsedCost = parseFloat(state.data.cost_price) || 0;
         let tTitle = await autoTranslate(state.data.title_km);
         let tDesc = await autoTranslate(state.data.desc_km || '');
 
         await pool.query(
-            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11`,
-            [cleanRef, state.data.title_km, tTitle.en, tTitle.zh, state.data.desc_km || '', tDesc.en, tDesc.zh, state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11, cost_price = $12`,
+            [cleanRef, state.data.title_km, tTitle.en, tTitle.zh, state.data.desc_km || '', tDesc.en, tDesc.zh, state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice, parsedCost]
         );
 
         if (state.action === 'ADD') {
@@ -941,7 +1043,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             }
         }
 
-        await ctx.reply('បន្ថែមទំនិញថ្មី និងបកប្រែស្វ័យប្រវត្តិជោគជ័យ! 📦');
+        await ctx.reply('បន្ថែមទំនិញថ្មី និងកត់ត្រាថ្លៃដើមជោគជ័យ! 📦');
     } catch (err) {
         await ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -981,9 +1083,7 @@ bot.on('message', async (ctx) => {
     }
 
     let authorized = await isAdminUser(chatId, username);
-    if (!authorized) {
-        return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
-    }
+    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password。');
 
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
@@ -991,6 +1091,69 @@ bot.on('message', async (ctx) => {
     await ctx.sendChatAction('typing');
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
+    // 🎬 ១. ដំណើរការ Upload Cover ឬ Icon សម្រាប់ Website (/website)
+    if (state.action === 'WEBSITE') {
+        let uploadedUrl = '';
+
+        if (msg.video || msg.video_note || msg.animation || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
+            try {
+                let fileId = msg.video ? msg.video.file_id : (msg.animation ? msg.animation.file_id : msg.document.file_id);
+                let link = await ctx.telegram.getFileLink(fileId);
+                let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
+                let buffer = Buffer.from(await response.arrayBuffer());
+                let fileName = `cover_vid_${Date.now()}.mp4`;
+                fs.writeFileSync(path.join(videoDir, fileName), buffer);
+                uploadedUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+            } catch (err) {
+                return ctx.reply(`❌ Upload បរាជ័យ: ${err.message}`);
+            }
+        } else if (msg.photo) {
+            try {
+                let fileId = msg.photo[msg.photo.length - 1].file_id;
+                let link = await ctx.telegram.getFileLink(fileId);
+                let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
+                let buffer = Buffer.from(await response.arrayBuffer());
+                let fileName = `img_${Date.now()}.jpg`;
+                fs.writeFileSync(path.join(videoDir, fileName), buffer);
+                uploadedUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+            } catch (err) {
+                return ctx.reply(`❌ Upload បរាជ័យ: ${err.message}`);
+            }
+        } else if (text.trim().startsWith('http')) {
+            uploadedUrl = text.trim();
+        } else {
+            return ctx.reply('⚠️ សូម Upload វីដេអូ រូបភាព ឬផ្ញើ Link លីងឱ្យបានត្រឹមត្រូវ!');
+        }
+
+        if (state.step === 'WAITING_COVER') {
+            await pool.query(
+                "INSERT INTO website_settings (key, value) VALUES ('cover_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                [uploadedUrl]
+            );
+            delete userStates[chatId];
+            return ctx.reply(`✅ **ជោគជ័យ!** Cover Website ថ្មីត្រូវបានអាប់ដេតរួចរាល់៖\n${uploadedUrl}`, { parse_mode: 'Markdown' });
+        }
+
+        if (state.step === 'WAITING_ICON_LOGO') {
+            await pool.query(
+                "INSERT INTO website_settings (key, value) VALUES ('logo_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                [uploadedUrl]
+            );
+            delete userStates[chatId];
+            return ctx.reply(`✅ **ជោគជ័យ!** Logo Website ថ្មីត្រូវបានអាប់ដេតរួចរាល់！`);
+        }
+
+        if (state.step === 'WAITING_ICON_CART') {
+            await pool.query(
+                "INSERT INTO website_settings (key, value) VALUES ('cart_icon_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                [uploadedUrl]
+            );
+            delete userStates[chatId];
+            return ctx.reply(`✅ **ជោគជ័យ!** Cart Icon ថ្មីត្រូវបានអាប់ដេតរួចរាល់！`);
+        }
+    }
+
+    // ✏️ ២. ដំណើរការ កែប្រែទំនិញ (/change)
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
             let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -1009,11 +1172,18 @@ bot.on('message', async (ctx) => {
         }
         if (state.step === 'UPDATE_PRICE') {
             let newPrice = parseFloat(text);
-            if (isNaN(newPrice)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខ!');
+            if (isNaN(newPrice)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃលក់ជាតួលេខ!');
             await pool.query("UPDATE products SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
             await pool.query("UPDATE stock SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
             delete userStates[chatId];
-            return ctx.reply(`✅ កែប្រែតម្លៃ Ref ${ref} ជោគជ័យ!`);
+            return ctx.reply(`✅ កែប្រែតម្លៃលក់ Ref ${ref} ជោគជ័យ!`);
+        }
+        if (state.step === 'UPDATE_COST') {
+            let newCost = parseFloat(text);
+            if (isNaN(newCost)) return ctx.reply('⚠️ សូមបញ្ចូលថ្លៃដើមជាតួលេខ!');
+            await pool.query("UPDATE products SET cost_price = $1 WHERE UPPER(ref) = $2", [newCost, ref]);
+            delete userStates[chatId];
+            return ctx.reply(`✅ កែប្រែថ្លៃដើម Ref ${ref} ជោគជ័យ!`);
         }
         if (state.step === 'UPDATE_DESC') {
             let tDesc = await autoTranslate(text.trim());
@@ -1047,16 +1217,23 @@ bot.on('message', async (ctx) => {
         return;
     }
 
+    // 📦 ៣. ដំណើរការ បន្ថែមទំនិញថ្មី (/add)
     switch (state.step) {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
             state.step = 'PRICE';
-            return ctx.reply('សូមបញ្ចូលតម្លៃទំនិញ:');
+            return ctx.reply('សូមបញ្ចូលតម្លៃលក់ (Selling Price - ឧ. 15.00):');
         case 'PRICE':
             let price = parseFloat(text);
-            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខ!');
+            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃលក់ជាតួលេខ!');
             state.data.price = price;
+            state.step = 'COST_PRICE';
+            return ctx.reply('សូមបញ្ចូលថ្លៃដើមទិញចូល (Cost Price - ឧ. 10.00):');
+        case 'COST_PRICE':
+            let costPrice = parseFloat(text);
+            if (isNaN(costPrice)) return ctx.reply('⚠️ សូមបញ្ចូលថ្លៃដើមជាតួលេខ!');
+            state.data.cost_price = costPrice;
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
@@ -1078,7 +1255,7 @@ bot.on('message', async (ctx) => {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAI_HOST}/${text.trim()}`;
+                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
@@ -1096,6 +1273,19 @@ bot.on('message', async (ctx) => {
             });
     }
 });
+
+// 📌 កំណត់ បញ្ជីពាក្យបញ្ជា (Command Menu) ស្វ័យប្រវត្តិ
+bot.telegram.setMyCommands([
+    { command: 'start', description: 'ចាប់ផ្តើមប្រព័ន្ធ / ផ្ទៀងផ្ទាត់ Password' },
+    { command: 'website', description: '🎬 កែប្រែ Cover, Video Animation & Icons Website' },
+    { command: 'report', description: '📊 មើលរបាយការណ៍ ចំណាយ ចំណូល និងប្រាក់ចំណេញ' },
+    { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
+    { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
+    { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
+    { command: 'cleanup', description: 'សម្អាតវីដេអូចាស់ៗលើ Server Disk' },
+    { command: 'cancel', description: 'បោះបង់សកម្មភាពកំពុងរត់' },
+    { command: 'setmeowner', description: 'កំណត់សិទ្ធិ Owner (ប្រើពេលដំបូង)' }
+]).catch(err => console.error("Set commands error:", err));
 
 bot.launch();
 console.log('Telegram Bot started successfully...');
