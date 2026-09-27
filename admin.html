@@ -59,12 +59,12 @@
             <div class="sub-badge">mini app</div>
         </div>
         <div class="header-actions">
-            <button class="btn-header" onclick="loadAdminProducts()">🔄 Refresh</button>
+            <button class="btn-header" onclick="verifyAndLoad()">🔄 Refresh</button>
         </div>
     </div>
 
     <div id="adminProductList">
-        <div style="text-align: center; color: var(--text-muted); padding: 30px;">កំពុងទាញយកទិន្នន័យស្តុក...</div>
+        <div style="text-align: center; color: var(--text-muted); padding: 30px;">កំពុងផ្ទៀងផ្ទាត់សិទ្ធិ Admin...</div>
     </div>
 
     <div id="toast" class="toast">បានកែប្រែស្តុកជោគជ័យ!</div>
@@ -76,6 +76,39 @@
         }
 
         const API_BASE = ""; 
+
+        // 🔒 មុខងារផ្ទៀងផ្ទាត់សិទ្ធិ Admin ជាមួយ Server មុននឹងអនុញ្ញាតឱ្យបើក Mini App
+        async function verifyAndLoad() {
+            let user = tg?.initDataUnsafe?.user;
+            let telegramId = user ? user.id : 0;
+            let username = user ? user.username || '' : '';
+
+            try {
+                let checkRes = await fetch(`${API_BASE}/api/check-admin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegramId, username })
+                });
+                let checkData = await checkRes.json();
+
+                if (!checkData.authorized) {
+                    document.body.innerHTML = `
+                        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #0f172a; color: #f8fafc; font-family: 'Kantumruy Pro', sans-serif; text-align: center; padding: 20px;">
+                            <h2 style="color: #ef4444; margin-bottom: 10px;">⛔️ Access Denied</h2>
+                            <p style="color: #94a3b8; font-size: 13px; line-height: 1.6;">អ្នកមិនមានសិទ្ធិបើកមើល Mini App នេះទេ!<br>សូមចូលទៅកាន់ Bot រួចវាយបញ្ចូល Password ឱ្យបានត្រឹមត្រូវជាមុនសិន។</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // បើមានសិទ្ធិ ដំណើរការទាញយកទិន្នន័យស្តុក
+                loadAdminProducts();
+
+            } catch (err) {
+                console.error("Verification error:", err);
+                document.getElementById('adminProductList').innerHTML = `<div style="color: #ef4444; text-align: center;">បរាជ័យក្នុងការតភ្ជាប់ Server!</div>`;
+            }
+        }
 
         async function loadAdminProducts() {
             try {
@@ -168,7 +201,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadAdminProducts();
+            verifyAndLoad();
         });
     </script>
 </body>
