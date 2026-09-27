@@ -27,7 +27,7 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup (Token ថ្មី)
+// Telegram Bot Setup
 const BOT_TOKEN = process.env.BOT_TOKEN || '8631007810:AAFPb8QWKO9z807SXvE_GEZ9-CyACqgBRU0';
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -459,7 +459,100 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 🌐 ពាក្យបញ្ជា /website (អាប់ដេតមុខងារបន្ថែម)
+// 📊 មុខងារ /stats
+bot.command('stats', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    try {
+        let prodCount = await pool.query("SELECT COUNT(*) FROM products");
+        let stockSum = await pool.query("SELECT SUM(stock_qty) FROM stock");
+        let orderPending = await pool.query("SELECT COUNT(*) FROM orders WHERE status = 'PENDING'");
+        let totalSales = await pool.query("SELECT SUM(total) FROM orders WHERE status = 'CONFIRMED'");
+
+        let msg = `📊 **របាយការណ៍ និងស្ថិតិសរុប Oneday Clothing**\n\n`;
+        msg += `📦 ផលិតផលសរុប: **${prodCount.rows[0].count} Ref**\n`;
+        msg += `👕 គ្រឿងស្តុកសរុប: **${stockSum.rows[0].sum || 0} គ្រឿង**\n`;
+        msg += `⏳ Order កំពុងរង់ចាំ (Pending): **${orderPending.rows[0].count}**\n`;
+        msg += `💵 ជោគជ័យសរុប (Confirmed Sales): **$${parseFloat(totalSales.rows[0].sum || 0).toFixed(2)}**`;
+
+        ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// 📦 មុខងារ /orders
+bot.command('orders', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    try {
+        let res = await pool.query("SELECT * FROM orders WHERE status = 'PENDING' ORDER BY id DESC LIMIT 5");
+        if (res.rows.length === 0) return ctx.reply('✅ គ្មាន Order ថ្មីកំពុងរង់ចាំ (Pending) ទេ!');
+
+        for (let order of res.rows) {
+            let cust = typeof order.customer === 'string' ? JSON.parse(order.customer) : order.customer;
+            let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+
+            let msg = `📦 **Order ID: #${order.id}** (Status: PENDING)\n`;
+            msg += `👤 ឈ្មោះ: ${cust?.name || 'អនាមិក'} (${cust?.phone || 'គ្មានលេខ'})\n`;
+            msg += `📍 អាសយដ្ឋាន: ${cust?.address || 'គ្មាន'}\n`;
+            msg += `🛒 ទំនិញ:\n`;
+            for (let key in items) {
+                let it = items[key];
+                msg += `• Ref ${it.ref} (Size ${it.size}) x ${it.qty} = $${Number(it.price * it.qty).toFixed(2)}\n`;
+            }
+            msg += `💵 សរុប: $${Number(order.total).toFixed(2)}`;
+
+            let inlineKeyboard = [
+                [
+                    { text: '✅ Confirm Order', callback_data: `confirm_order_${order.id}` },
+                    { text: '❌ Cancel Order', callback_data: `cancel_order_${order.id}` }
+                ]
+            ];
+
+            await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: inlineKeyboard } });
+        }
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// 🔍 មុខងារ /search
+bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    let rawRef = ctx.match[1].trim();
+    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+
+    try {
+        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+        if (check.rows.length === 0) return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
+        let prod = check.rows[0];
+
+        let stockRes = await pool.query("SELECT size, stock_qty FROM stock WHERE UPPER(ref) = $1 ORDER BY size", [cleanRef]);
+        let stockText = stockRes.rows.map(s => `${s.size}: ${s.stock_qty}`).join(' | ');
+
+        let msg = `🔍 **ព័ត៌មានទំនិញ Ref : ${cleanRef}**\n\n`;
+        msg += `• ឈ្មោះ: ${prod.title_km}\n`;
+        msg += `• តម្លៃ: $${prod.price}\n`;
+        msg += `• ភេទ: ${prod.gender}\n`;
+        msg += `• ប្រភេទ: ${prod.type}\n`;
+        msg += `• ស្តុក: [ ${stockText} ]\n`;
+        if (prod.desc_km) msg += `• ការបរិយាយ: ${prod.desc_km}\n`;
+
+        ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// 🌐 ពាក្យបញ្ជា /website (មានមុខងារទាំង ៤ ពេញលេញ)
 bot.command(['website', 'Website'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -468,62 +561,71 @@ bot.command(['website', 'Website'], async (ctx) => {
 
     userStates[chatId] = { action: 'WEBSITE' };
 
-    await ctx.reply('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់កែប្រែ៖', {
+    await ctx.reply('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់ធ្វើការ៖', {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន (View Settings)', callback_data: 'web_view_settings' }],
+                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
                 [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
-                [{ text: '🎨 កែប្រែ UI Icons (Logo / Cart)', callback_data: 'web_edit_icon' }],
-                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_banner' }],
+                [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
+                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
             ]
         }
     });
 });
 
+// 👁️ មុខងារ ១: មើលការកំណត់បច្ចុប្បន្ន
 bot.action('web_view_settings', async (ctx) => {
+    const chatId = ctx.chat.id;
+    await ctx.answerCbQuery();
+
     try {
-        let result = await pool.query("SELECT * FROM website_settings");
+        let res = await pool.query("SELECT * FROM website_settings");
         let settings = {};
-        result.rows.forEach(r => settings[r.key] = r.value);
+        res.rows.forEach(r => settings[r.key] = r.value);
 
-        let msg = `⚙️ **ការកំណត់ Website បច្ចុប្បន្ន៖**\n\n`;
-        msg += `🎬 **Cover Video/Image:** ${settings.cover_url || 'Default'}\n`;
-        msg += `🖼️ **Logo URL:** ${settings.logo_url || 'Default'}\n`;
-        msg += `🛒 **Cart Icon URL:** ${settings.cart_icon_url || 'Default'}\n`;
-        msg += `📢 **Banner Title:** ${settings.main_title || 'BUILD YOUR DREAM STYLE'}\n`;
+        let coverUrl = settings.cover_url || 'Default System Video';
+        let logoUrl = settings.logo_url || 'Default Logo Text (Oneday.)';
+        let cartIconUrl = settings.cart_icon_url || 'Default Cart Icon';
+        let mainTitle = settings.cover_title || 'BUILD YOUR DREAM STYLE';
 
-        await ctx.answerCbQuery();
+        let msg = `👁️ **ការកំណត់បច្ចុប្បន្នលើ Website:**\n\n`;
+        msg += `📢 **Banner Title:** ${mainTitle}\n`;
+        msg += `🎬 **Cover Video/Image:**\n${coverUrl}\n\n`;
+        msg += `🖼️ **Shop Logo:**\n${logoUrl}\n\n`;
+        msg += `🛒 **Cart Icon:**\n${cartIconUrl}`;
+
         await ctx.editMessageText(msg, {
-            parse_mode: 'Markdown',
+            disable_web_page_preview: true,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔙 ត្រឡប់ក្រោយ (Back)', callback_data: 'web_back_menu' }]
+                    [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
                 ]
             }
         });
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហាទាញទិន្នន័យ', { show_alert: true });
+        await ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
 bot.action('web_back_menu', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.editMessageText('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់កែប្រែ៖', {
+    await ctx.editMessageText('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់ធ្វើការ៖', {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន (View Settings)', callback_data: 'web_view_settings' }],
+                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
                 [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
-                [{ text: '🎨 កែប្រែ UI Icons (Logo / Cart)', callback_data: 'web_edit_icon' }],
-                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_banner' }],
+                [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
+                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
             ]
         }
     });
 });
 
+// 🎬 មុខងារ ២: កែប្រែ Cover
 bot.action('web_edit_cover', async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_COVER' };
@@ -531,25 +633,17 @@ bot.action('web_edit_cover', async (ctx) => {
     await ctx.editMessageText('🎬 **សូម Upload Video ឬ Image/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
 });
 
+// 🎨 មុខងារ ៣: កែប្រែ Logo & Cart Icon
 bot.action('web_edit_icon', async (ctx) => {
-    const chatId = ctx.chat.id;
     await ctx.answerCbQuery();
     await ctx.editMessageText('🎨 **ជ្រើសរើស Icon ឬ Logo ដែលចង់កែប្រែ៖**', {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '🖼️ រូប Logo ហាង (Header Logo)', callback_data: 'web_set_icon_logo' }],
-                [{ text: '🛒 រូប Cart Icon', callback_data: 'web_set_icon_cart' }],
-                [{ text: '🔙 ត្រឡប់ក្រោយ (Back)', callback_data: 'web_back_menu' }]
+                [{ text: '🛒 រូប Cart Icon', callback_data: 'web_set_icon_cart' }]
             ]
         }
     });
-});
-
-bot.action('web_edit_banner', async (ctx) => {
-    const chatId = ctx.chat.id;
-    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_BANNER' };
-    await ctx.answerCbQuery();
-    await ctx.editMessageText('📢 **សូមសរសេរពាក្យ/សារ Banner ថ្មី** (ឧ. BUILD YOUR DREAM STYLE ឬ PROMOTION 20% OFF):');
 });
 
 bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
@@ -558,6 +652,14 @@ bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
     userStates[chatId] = { action: 'WEBSITE', step: `WAITING_ICON_${type.toUpperCase()}` };
     await ctx.answerCbQuery();
     await ctx.editMessageText(`🖼️ សូម Upload រូបភាពថ្មីសម្រាប់ **${type.toUpperCase()}**:`);
+});
+
+// 📢 មុខងារ ៤: កែប្រែសារ Banner Title
+bot.action('web_edit_title', async (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_TITLE' };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('📢 **សូមផ្ញើសារ/អក្សរ Banner ថ្មី** (ឧ. SPECIAL OFFER 20% OFF)៖');
 });
 
 bot.action('web_cancel', async (ctx) => {
@@ -1086,12 +1188,12 @@ bot.on('message', async (ctx) => {
     await ctx.sendChatAction('typing');
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
-    // 🎬 ១. ដំណើរការ Upload / Edit សម្រាប់ Website (/website)
+    // 🎬 ដំណើរការកំណត់ Website (/website)
     if (state.action === 'WEBSITE') {
-        if (state.step === 'WAITING_BANNER') {
-            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលអក្សរដំណឹង/Banner!');
+        if (state.step === 'WAITING_TITLE') {
+            if (!text.trim()) return ctx.reply('⚠️ សូមផ្ញើសារ/អក្សរឱ្យបានត្រឹមត្រូវ!');
             await pool.query(
-                "INSERT INTO website_settings (key, value) VALUES ('main_title', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                "INSERT INTO website_settings (key, value) VALUES ('cover_title', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
                 [text.trim()]
             );
             delete userStates[chatId];
@@ -1099,7 +1201,6 @@ bot.on('message', async (ctx) => {
         }
 
         let uploadedUrl = '';
-
         if (msg.video || msg.video_note || msg.animation || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
             try {
                 let fileId = msg.video ? msg.video.file_id : (msg.animation ? msg.animation.file_id : msg.document.file_id);
@@ -1158,7 +1259,7 @@ bot.on('message', async (ctx) => {
         }
     }
 
-    // ✏️ ២. ដំណើរការ កែប្រែទំនិញ (/change)
+    // ✏️ ដំណើរការ កែប្រែទំនិញ (/change)
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
             let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -1215,13 +1316,13 @@ bot.on('message', async (ctx) => {
         return;
     }
 
-    // 📦 ៣. ដំណើរការ បន្ថែមទំនិញថ្មី (/add)
+    // 📦 ដំណើរការ បន្ថែមទំនិញថ្មី (/add)
     switch (state.step) {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
-            state.data.price = 0; // កំណត់តម្លៃលក់ 0 ជា Default
-            state.data.cost_price = 0; // កំណត់ថ្លៃដើម 0 ជា Default
+            state.data.price = 0;
+            state.data.cost_price = 0;
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
@@ -1265,7 +1366,10 @@ bot.on('message', async (ctx) => {
 // 📌 កំណត់ បញ្ជីពាក្យបញ្ជា (Command Menu) ស្វ័យប្រវត្តិ
 bot.telegram.setMyCommands([
     { command: 'start', description: 'ចាប់ផ្តើមប្រព័ន្ធ / ផ្ទៀងផ្ទាត់ Password' },
-    { command: 'website', description: ' កែប្រែ Cover, Video Animation & Icons Website' },
+    { command: 'stats', description: 'មើលរបាយការណ៍ និងស្ថិតិសរុប' },
+    { command: 'orders', description: 'មើលបញ្ជីកុម្មង់កំពុងរង់ចាំ (Pending Orders)' },
+    { command: 'search', description: 'ស្វែងរកទំនិញតាម Ref (ឧ. /search 1)' },
+    { command: 'website', description: 'កែប្រែ Cover, Logo & Banner Text Website' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
