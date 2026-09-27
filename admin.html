@@ -1,4 +1,3 @@
-Ok full code
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -10,7 +9,16 @@ const translate = require('translate-google'); // 📦 Library សម្រា�
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Serve វេបសាយ និង admin.html ផ្ទាល់
+app.use(express.static('.')); // Serve ហ្វាល Static ទាំងអស់
+
+// 🌐 បែងចែក Route ឱ្យដាច់ពីគ្នា (Website និង Mini App ផ្សេងគ្នា)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html')); // វេបសាយធម្មតា
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html')); // Telegram Mini App គ្រប់គ្រងស្តុក
+});
 
 // ភ្ជាប់ Database ស្វ័យប្រវត្តិពី Railway
 const pool = new Pool({
@@ -18,7 +26,7 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup ជាមួយ Token របស់អ្នក
+// Telegram Bot Setup
 const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
 const bot = new Telegraf(BOT_TOKEN);
 
@@ -226,13 +234,12 @@ app.post('/api/admin/add-product', async (req, res) => {
     }
 });
 
-// 🔒 API Order ដែលបានកែសម្រួលការពារ Race Condition ជាមួយ Transaction និង FOR UPDATE
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
-    const client = await pool.connect(); // បើក Connection ដាច់ដោយឡែកសម្រាប់ Transaction
+    const client = await pool.connect();
 
     try {
-        await client.query('BEGIN'); // 🚀 ចាប់ផ្តើម Transaction
+        await client.query('BEGIN');
 
         let totalAmount = 0;
         let itemsSummary = [];
@@ -243,7 +250,6 @@ app.post('/api/order', async (req, res) => {
             let cleanSize = item.size.trim().toUpperCase();
             let qty = parseInt(item.qty) || 1;
             
-            // 🔒 ប្រើ FOR UPDATE ដើម្បី Lock ជួរទំនិញនោះ មិនឱ្យអតិថិជនផ្សេងកុម្មង់ជាន់គ្នាបានក្នុងពេលតែមួយ
             let check = await client.query(
                 "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
                 [cleanRef, cleanSize]
@@ -252,7 +258,7 @@ app.post('/api/order', async (req, res) => {
             if (check.rows.length > 0) {
                 let currentStock = check.rows[0].stock_qty;
                 if (currentStock < qty) {
-                    await client.query('ROLLBACK'); // បោះបង់ចោលប្រតិបត្តិការភ្លាម
+                    await client.query('ROLLBACK');
                     client.release();
                     return res.json({ 
                         success: false, 
@@ -276,14 +282,12 @@ app.post('/api/order', async (req, res) => {
             }
         }
 
-        // បង្កើត Order
         let orderRes = await client.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
         );
         let orderId = orderRes.rows[0].id;
 
-        // កាត់ស្តុកភ្លាមៗក្នុង Transaction តែមួយ
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -296,10 +300,9 @@ app.post('/api/order', async (req, res) => {
             );
         }
 
-        await client.query('COMMIT'); // ✅ រក្សាទុកទិន្នន័យជាផ្លូវការពេលគ្រប់យ៉ាងរលូន
+        await client.query('COMMIT');
         client.release();
 
-        // ផ្ញើសារជូនដំណឹងទៅកាន់ Admin តាម Telegram Bot
         let adminsRes = await pool.query("SELECT chat_id FROM admins");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
@@ -351,7 +354,7 @@ app.post('/api/order', async (req, res) => {
         res.json({ success: true, message: "ការកុម្មង់បានជោគជ័យ និងកាត់ស្តុកស្វ័យប្រវត្តិរួចរាល់!" });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // បើមានបញ្ហាអ្វីកើតឡើង គឺមិនអនុញ្ញាតឱ្យកាត់ស្តុកខុសឡើយ
+        await client.query('ROLLBACK');
         client.release();
         res.status(500).json({ success: false, error: err.message });
     }
@@ -874,4 +877,4 @@ bot.launch();
 console.log('Telegram Bot started successfully...');
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
