@@ -24,13 +24,19 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Kantumruy Pro', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background-color: var(--bg-color); color: var(--primary); padding: 12px; padding-bottom: 80px; }
 
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: var(--card-bg); padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border-color); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: var(--card-bg); padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border-color); }
         .logo-box { display: flex; flex-direction: column; }
         .logo { font-size: 15px; font-weight: 800; color: var(--primary); }
         .sub-badge { font-size: 9px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
         
         .header-actions { display: flex; gap: 8px; align-items: center; }
-        .btn-header { background: var(--border-color); color: var(--primary); border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+        .btn-header { background: var(--accent); color: #0f172a; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+        /* Search Bar Box */
+        .search-box-container { margin-bottom: 12px; display: none; }
+        .search-box-container.active { display: block; }
+        .search-input { width: 100%; padding: 10px 14px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--primary); font-size: 13px; outline: none; }
+        .search-input:focus { border-color: var(--accent); }
 
         .product-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .prod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
@@ -55,12 +61,16 @@
 
     <div class="header">
         <div class="logo-box">
-            <div class="logo">Oneday Stock-Controller</div>
+            <div class="logo">OneDay Stock-Controller</div>
             <div class="sub-badge">mini app</div>
         </div>
         <div class="header-actions">
-            <button class="btn-header" onclick="verifyAndLoad()">🔄 Refresh</button>
+            <button class="btn-header" onclick="toggleSearchBox()">🔍 Search</button>
         </div>
+    </div>
+
+    <div class="search-box-container" id="searchBoxContainer">
+        <input type="text" id="searchInput" class="search-input" placeholder="ស្វែងរកតាមលេខ Ref ឬ ឈ្មោះទំនិញ..." oninput="filterAdminProducts()">
     </div>
 
     <div id="adminProductList">
@@ -76,6 +86,7 @@
         }
 
         const API_BASE = ""; 
+        let allProductsCache = [];
 
         // 🔒 មុខងារផ្ទៀងផ្ទាត់សិទ្ធិ Admin ជាមួយ Server មុននឹងអនុញ្ញាតឱ្យបើក Mini App
         async function verifyAndLoad() {
@@ -113,48 +124,84 @@
         async function loadAdminProducts() {
             try {
                 let res = await fetch(`${API_BASE}/api/products`);
-                let products = await res.json();
-                
-                let container = document.getElementById('adminProductList');
-                container.innerHTML = '';
-
-                products.forEach(prod => {
-                    let sizes = prod.sizes || [];
-                    let sizesHtml = '';
-
-                    const sizeList = ['S', 'M', 'L', 'XL', 'XXL'];
-                    sizeList.forEach(sz => {
-                        let found = sizes.find(s => s.size.toUpperCase() === sz);
-                        let qty = found ? found.stock_qty : 0;
-                        sizesHtml += `
-                            <div class="size-row">
-                                <div class="size-label">Size: ${sz}</div>
-                                <div class="qty-controls">
-                                    <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', -1)">-</button>
-                                    <input type="number" class="size-input" id="qty-${prod.ref}-${sz}" value="${qty}" min="0" onchange="updateStockAPI('${prod.ref}', '${sz}')">
-                                    <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', 1)">+</button>
-                                </div>
-                            </div>
-                        `;
-                    });
-
-                    let card = document.createElement('div');
-                    card.className = 'product-card';
-                    card.innerHTML = `
-                        <div class="prod-header">
-                            <div class="prod-title">Ref: ${prod.ref} - ${prod.title_km}</div>
-                            <div class="prod-price">$${parseFloat(prod.price).toFixed(2)}</div>
-                        </div>
-                        <div>
-                            ${sizesHtml}
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
+                allProductsCache = await res.json();
+                renderProductCards(allProductsCache);
             } catch (err) {
                 console.error("Error loading products:", err);
                 document.getElementById('adminProductList').innerHTML = `<div style="color: #ef4444; text-align: center;">បរាជ័យក្នុងការតភ្ជាប់ Server!</div>`;
             }
+        }
+
+        function toggleSearchBox() {
+            let box = document.getElementById('searchBoxContainer');
+            box.classList.toggle('active');
+            if (box.classList.contains('active')) {
+                document.getElementById('searchInput').focus();
+            } else {
+                document.getElementById('searchInput').value = '';
+                filterAdminProducts();
+            }
+        }
+
+        function filterAdminProducts() {
+            let keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!keyword) {
+                renderProductCards(allProductsCache);
+                return;
+            }
+
+            let filtered = allProductsCache.filter(prod => {
+                let ref = String(prod.ref).toLowerCase();
+                let titleKm = (prod.title_km || '').toLowerCase();
+                let titleEn = (prod.title_en || '').toLowerCase();
+                return ref.includes(keyword) || titleKm.includes(keyword) || titleEn.includes(keyword);
+            });
+
+            renderProductCards(filtered);
+        }
+
+        function renderProductCards(products) {
+            let container = document.getElementById('adminProductList');
+            container.innerHTML = '';
+
+            if (products.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 30px;">រកមិនឃើញទំនិញដែលស្វែងរកទេ!</div>`;
+                return;
+            }
+
+            products.forEach(prod => {
+                let sizes = prod.sizes || [];
+                let sizesHtml = '';
+
+                const sizeList = ['S', 'M', 'L', 'XL', 'XXL'];
+                sizeList.forEach(sz => {
+                    let found = sizes.find(s => s.size.toUpperCase() === sz);
+                    let qty = found ? found.stock_qty : 0;
+                    sizesHtml += `
+                        <div class="size-row">
+                            <div class="size-label">Size: ${sz}</div>
+                            <div class="qty-controls">
+                                <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', -1)">-</button>
+                                <input type="number" class="size-input" id="qty-${prod.ref}-${sz}" value="${qty}" min="0" onchange="updateStockAPI('${prod.ref}', '${sz}')">
+                                <button class="btn-qty" onclick="changeQty('${prod.ref}', '${sz}', 1)">+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                let card = document.createElement('div');
+                card.className = 'product-card';
+                card.innerHTML = `
+                    <div class="prod-header">
+                        <div class="prod-title">Ref: ${prod.ref} - ${prod.title_km}</div>
+                        <div class="prod-price">$${parseFloat(prod.price).toFixed(2)}</div>
+                    </div>
+                    <div>
+                        ${sizesHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
         }
 
         async function changeQty(ref, size, delta) {
@@ -179,7 +226,7 @@
 
         async function sendStockUpdate(ref, size, qty) {
             try {
-                let res = await fetch(`${API_BASE}/api/admin/update-stock`, {
+                let res = await fetch(`${API_BASE}/api/admin/update-stock`,.trim(), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ref, size, qty })
