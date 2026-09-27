@@ -31,6 +31,8 @@ const pool = new Pool({
 const BOT_TOKEN = process.env.BOT_TOKEN || '8631007810:AAFPb8QWKO9z807SXvE_GEZ9-CyACqgBRU0';
 const bot = new Telegraf(BOT_TOKEN);
 
+const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
+
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
@@ -79,6 +81,19 @@ async function autoTranslate(text) {
 const videoDir = path.join(__dirname, 'videos');
 if (!fs.existsSync(videoDir)) {
     fs.mkdirSync(videoDir, { recursive: true });
+}
+
+// 📥 Helper Function ទាញយក និង Save ហ្វាលពី Telegram Bot
+async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'vid') {
+    let linkObj = await ctx.telegram.getFileLink(fileId);
+    let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
+    let response = await fetch(fileUrl);
+    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+    let arrayBuffer = await response.arrayBuffer();
+    let buffer = Buffer.from(arrayBuffer);
+    let fileName = `${prefix}_${Date.now()}.mp4`;
+    fs.writeFileSync(path.join(videoDir, fileName), buffer);
+    return `${RAILWAY_HOST}/videos/${fileName}`;
 }
 
 // បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
@@ -552,7 +567,7 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
     }
 });
 
-// 🌐 ពាក្យបញ្ជា /website (មានមុខងារទាំង ៤ ពេញលេញ)
+// 🌐 ពាក្យបញ្ជា /website
 bot.command(['website', 'Website'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -575,7 +590,6 @@ bot.command(['website', 'Website'], async (ctx) => {
     });
 });
 
-// 👁️ មុខងារ ១: មើលការកំណត់បច្ចុប្បន្ន
 bot.action('web_view_settings', async (ctx) => {
     const chatId = ctx.chat.id;
     await ctx.answerCbQuery();
@@ -625,7 +639,6 @@ bot.action('web_back_menu', async (ctx) => {
     });
 });
 
-// 🎬 មុខងារ ២: កែប្រែ Cover
 bot.action('web_edit_cover', async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_COVER' };
@@ -633,7 +646,6 @@ bot.action('web_edit_cover', async (ctx) => {
     await ctx.editMessageText('🎬 **សូម Upload Video ឬ Image/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
 });
 
-// 🎨 មុខងារ ៣: កែប្រែ Logo & Cart Icon
 bot.action('web_edit_icon', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageText('🎨 **ជ្រើសរើស Icon ឬ Logo ដែលចង់កែប្រែ៖**', {
@@ -654,7 +666,6 @@ bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
     await ctx.editMessageText(`🖼️ សូម Upload រូបភាពថ្មីសម្រាប់ **${type.toUpperCase()}**:`);
 });
 
-// 📢 មុខងារ ៤: កែប្រែសារ Banner Title
 bot.action('web_edit_title', async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_TITLE' };
@@ -1186,7 +1197,6 @@ bot.on('message', async (ctx) => {
     let state = userStates[chatId];
 
     await ctx.sendChatAction('typing');
-    const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
     // 🎬 ដំណើរការកំណត់ Website (/website)
     if (state.action === 'WEBSITE') {
@@ -1201,27 +1211,14 @@ bot.on('message', async (ctx) => {
         }
 
         let uploadedUrl = '';
-        if (msg.video || msg.video_note || msg.animation || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
-            try {
-                let fileId = msg.video ? msg.video.file_id : (msg.animation ? msg.animation.file_id : msg.document.file_id);
-                let link = await ctx.telegram.getFileLink(fileId);
-                let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
-                let buffer = Buffer.from(await response.arrayBuffer());
-                let fileName = `cover_vid_${Date.now()}.mp4`;
-                fs.writeFileSync(path.join(videoDir, fileName), buffer);
-                uploadedUrl = `${RAILWAY_HOST}/videos/${fileName}`;
-            } catch (err) {
-                return ctx.reply(`❌ Upload បរាជ័យ: ${err.message}`);
+        let fileObj = msg.video || msg.video_note || msg.animation || msg.document || (msg.photo ? msg.photo[msg.photo.length - 1] : null);
+
+        if (fileObj) {
+            if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
+                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមហ្វាល ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
             }
-        } else if (msg.photo) {
             try {
-                let fileId = msg.photo[msg.photo.length - 1].file_id;
-                let link = await ctx.telegram.getFileLink(fileId);
-                let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
-                let buffer = Buffer.from(await response.arrayBuffer());
-                let fileName = `img_${Date.now()}.jpg`;
-                fs.writeFileSync(path.join(videoDir, fileName), buffer);
-                uploadedUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                uploadedUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'web');
             } catch (err) {
                 return ctx.reply(`❌ Upload បរាជ័យ: ${err.message}`);
             }
@@ -1292,15 +1289,14 @@ bot.on('message', async (ctx) => {
         }
         if (state.step === 'UPDATE_VIDEO') {
             let videoUrl = '';
-            if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
+            let fileObj = msg.video || msg.video_note || msg.animation || msg.document;
+
+            if (fileObj) {
+                if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
+                    return ctx.reply('⚠️ ហ្វាលវីដេអូនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមវីដេអូ ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
+                }
                 try {
-                    let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
-                    let link = await ctx.telegram.getFileLink(fileId);
-                    let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
-                    let buffer = Buffer.from(await response.arrayBuffer());
-                    let fileName = `vid_${Date.now()}.mp4`;
-                    fs.writeFileSync(path.join(videoDir, fileName), buffer);
-                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'vid');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
@@ -1328,18 +1324,17 @@ bot.on('message', async (ctx) => {
         case 'DESC':
             state.data.desc_km = text.trim();
             state.step = 'VIDEO';
-            return ctx.reply('សុំ Upload Video:');
+            return ctx.reply('សុំ Upload Video (ឬផ្ញើជាហ្វាល/លីង):');
         case 'VIDEO':
             let videoUrl = '';
-            if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
+            let fileObj = msg.video || msg.video_note || msg.animation || msg.document;
+
+            if (fileObj) {
+                if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
+                    return ctx.reply('⚠️ ហ្វាលវីដេអូនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួម (Compress) វីដេអូឱ្យតូចជាង 20MB ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
+                }
                 try {
-                    let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
-                    let link = await ctx.telegram.getFileLink(fileId);
-                    let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
-                    let buffer = Buffer.from(await response.arrayBuffer());
-                    let fileName = `vid_${Date.now()}.mp4`;
-                    fs.writeFileSync(path.join(videoDir, fileName), buffer);
-                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'vid');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
@@ -1348,6 +1343,7 @@ bot.on('message', async (ctx) => {
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
+
             state.data.video_url = videoUrl;
             state.step = 'GENDER';
             return ctx.reply('ជ្រើសរើសប្រភេទភេទ:', {
