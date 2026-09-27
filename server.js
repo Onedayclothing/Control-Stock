@@ -6,14 +6,6 @@ const fs = require('fs');
 const path = require('path');
 const translate = require('translate-google'); // 📦 Library សម្រាប់បកប្រែស្វ័យប្រវត្តិ
 
-// 🛠️ ចំណុចទី ២: Global Error Handling (ការពារ Server មិនឱ្យ Crash ពេលមាន Error កើតឡើងជាយថាហេតុ)
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception thrown:', error);
-});
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -29,23 +21,15 @@ const pool = new Pool({
 const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
 const bot = new Telegraf(BOT_TOKEN);
 
-// 🛠️ ចំណុចទី ១: Dynamic Host URL
-const HOST_URL = process.env.RAILWAY_PUBLIC_DOMAIN 
-    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
-    : 'https://control-stock-production-a855.up.railway.app';
-
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
-// មុខងារឆែកមើលថាតើ Chat ID នេះជា Admin ឬនៅ
-async function isAdmin(chatId) {
-    if (!chatId) return false;
+// មុខងារកត់ត្រា Admin Chat ID ស្វ័យប្រវត្តិ
+async function registerAdmin(chatId) {
     try {
-        let res = await pool.query("SELECT * FROM admins WHERE chat_id = $1", [chatId]);
-        return res.rows.length > 0;
+        await pool.query("INSERT INTO admins (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING", [chatId]);
     } catch (err) {
-        console.error("Error checking admin:", err);
-        return false;
+        console.error("Error registering admin:", err);
     }
 }
 
@@ -105,16 +89,7 @@ async function initDB() {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS admins (
-                chat_id BIGINT PRIMARY KEY,
-                username VARCHAR(255)
-            );
-        `);
-        await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
-
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS telegram_users (
-                chat_id BIGINT PRIMARY KEY,
-                username VARCHAR(255)
+                chat_id BIGINT PRIMARY KEY
             );
         `);
 
@@ -200,14 +175,8 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// 🔒 API Update Stock (ការពារដោយពិនិត្យសិទ្ធិ Admin)
 app.post('/api/admin/update-stock', async (req, res) => {
-    let { ref, size, qty, telegram_id } = req.body;
-    
-    if (!telegram_id || !(await isAdmin(telegram_id))) {
-        return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
-    }
-
+    let { ref, size, qty } = req.body;
     try {
         let cleanRef = ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
         let cleanSize = size.trim().toUpperCase();
@@ -221,14 +190,8 @@ app.post('/api/admin/update-stock', async (req, res) => {
     }
 });
 
-// 🔒 API Add Product (ការពារដោយពិនិត្យសិទ្ធិ Admin)
 app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock, telegram_id } = req.body;
-
-    if (!telegram_id || !(await isAdmin(telegram_id))) {
-        return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
-    }
-
+    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
@@ -265,10 +228,10 @@ app.post('/api/admin/add-product', async (req, res) => {
 // 🔒 API Order ដែលបានកែសម្រួលការពារ Race Condition ជាមួយ Transaction និង FOR UPDATE
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
-    const client = await pool.connect();
+    const client = await pool.connect(); // បើក Connection ដាច់ដោយឡែកសម្រាប់ Transaction
 
     try {
-        await client.query('BEGIN');
+        await client.query('BEGIN'); // 🚀 ចាប់ផ្តើម Transaction
 
         let totalAmount = 0;
         let itemsSummary = [];
@@ -279,6 +242,7 @@ app.post('/api/order', async (req, res) => {
             let cleanSize = item.size.trim().toUpperCase();
             let qty = parseInt(item.qty) || 1;
             
+            // 🔒 ប្រើ FOR UPDATE ដើម្បី Lock ជួរទំនិញនោះ មិនឱ្យអតិថិជនផ្សេងកុម្មង់ជាន់គ្នាបានក្នុងពេលតែមួយ
             let check = await client.query(
                 "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
                 [cleanRef, cleanSize]
@@ -287,7 +251,7 @@ app.post('/api/order', async (req, res) => {
             if (check.rows.length > 0) {
                 let currentStock = check.rows[0].stock_qty;
                 if (currentStock < qty) {
-                    await client.query('ROLLBACK');
+                    await client.query('ROLLBACK'); // បោះបង់ចោលប្រតិបត្តិការភ្លាម
                     client.release();
                     return res.json({ 
                         success: false, 
@@ -311,12 +275,14 @@ app.post('/api/order', async (req, res) => {
             }
         }
 
+        // បង្កើត Order
         let orderRes = await client.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
         );
         let orderId = orderRes.rows[0].id;
 
+        // កាត់ស្តុកភ្លាមៗក្នុង Transaction តែមួយ
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -329,9 +295,10 @@ app.post('/api/order', async (req, res) => {
             );
         }
 
-        await client.query('COMMIT');
+        await client.query('COMMIT'); // ✅ រក្សាទុកទិន្នន័យជាផ្លូវការពេលគ្រប់យ៉ាងរលូន
         client.release();
 
+        // ផ្ញើសារជូនដំណឹងទៅកាន់ Admin តាម Telegram Bot
         let adminsRes = await pool.query("SELECT chat_id FROM admins");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
@@ -383,7 +350,7 @@ app.post('/api/order', async (req, res) => {
         res.json({ success: true, message: "ការកុម្មង់បានជោគជ័យ និងកាត់ស្តុកស្វ័យប្រវត្តិរួចរាល់!" });
 
     } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK'); // បើមានបញ្ហាអ្វីកើតឡើង គឺមិនអនុញ្ញាតឱ្យកាត់ស្តុកខុសឡើយ
         client.release();
         res.status(500).json({ success: false, error: err.message });
     }
@@ -392,70 +359,13 @@ app.post('/api/order', async (req, res) => {
 // --- TELEGRAM BOT COMMANDS & CALLBACKS ---
 
 bot.start(async (ctx) => {
-    const chatId = ctx.chat.id;
-    const username = ctx.chat.username || '';
-
-    try {
-        await pool.query(
-            "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-            [chatId, username]
-        );
-    } catch (err) {
-        console.error("Error saving telegram user:", err);
-    }
-
-    if (await isAdmin(chatId)) {
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
-    }
-
-    userStates[chatId] = { action: 'WAITING_PIN' };
-    ctx.reply('🔒 សូមបញ្ចូលលេខកូដសម្ងាត់ (PIN Code) ដើម្បីផ្ទៀងផ្ទាត់សិទ្ធិជា Admin:');
-});
-
-bot.hears(/^\/add\s*@?(.+)/i, async (ctx) => {
-    const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) {
-        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ពាក្យបញ្ជាជា Admin ទេ!');
-    }
-
-    let targetUsername = ctx.match[1].trim().replace('@', '');
-    try {
-        let userRes = await pool.query("SELECT chat_id FROM telegram_users WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        if (userRes.rows.length === 0) {
-            return ctx.reply(`⚠️ រកមិនឃើញ User @${targetUsername} ក្នុងប្រព័ន្ធទេ។ សូមឱ្យពួកគាត់ចូលមកផ្ញើសារ ឬចុច /start ក្នុង Bot សិន ទើបប្រព័ន្ធស្គាល់ ID!`);
-        }
-        let targetChatId = userRes.rows[0].chat_id;
-        await pool.query(
-            "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-            [targetChatId, targetUsername]
-        );
-        ctx.reply(`✅ បានបន្ថែម @${targetUsername} ជា Admin ជោគជ័យ!`);
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
-    }
-});
-
-bot.hears(/^\/un\s*@?(.+)/i, async (ctx) => {
-    const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) {
-        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ពាក្យបញ្ជាជា Admin ទេ!');
-    }
-
-    let targetUsername = ctx.match[1].trim().replace('@', '');
-    try {
-        let res = await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1) RETURNING chat_id", [targetUsername]);
-        if (res.rows.length === 0) {
-            return ctx.reply(`⚠️ រកមិនឃើញ Admin @${targetUsername} ក្នុងបញ្ជីឡើយ!`);
-        }
-        ctx.reply(`❌ បានដកហូតសិទ្ធិ Admin ពី @${targetUsername} រួចរាល់!`);
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
-    }
+    await registerAdmin(ctx.chat.id);
+    ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
 });
 
 bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
+    await registerAdmin(chatId);
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -468,13 +378,12 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
-const cancelHandler = async (ctx) => {
+const cancelHandler = (ctx) => {
     const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return;
     if (userStates[chatId]) {
         delete userStates[chatId];
         ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
@@ -488,14 +397,14 @@ bot.command('cancle', cancelHandler);
 
 bot.command('change', async (ctx) => {
     let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
+    await registerAdmin(chatId);
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
     ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
+    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
     await handleEditRefSelection(ctx, chatId, cleanRef);
@@ -535,11 +444,9 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
 }
 
 bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
-    let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
-    
     let field = ctx.match[1];
     let ref = ctx.match[2];
+    let chatId = ctx.chat.id;
 
     if (field === 'cancel') {
         delete userStates[chatId];
@@ -576,11 +483,9 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
 });
 
 bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
-    let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
-
     let gender = ctx.match[1];
     let ref = ctx.match[2];
+    let chatId = ctx.chat.id;
 
     try {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
@@ -595,8 +500,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
-    
+    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -651,7 +555,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
 bot.command('cleanup', async (ctx) => {
     let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
+    await registerAdmin(chatId);
     try {
         if (!fs.existsSync(videoDir)) {
             return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
@@ -691,8 +595,6 @@ bot.command('cleanup', async (ctx) => {
 });
 
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
-    let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     let orderId = ctx.match[1];
     try {
         await pool.query("UPDATE orders SET status = 'CONFIRMED' WHERE id = $1", [orderId]);
@@ -707,8 +609,6 @@ bot.action(/^confirm_order_(.+)$/, async (ctx) => {
 });
 
 bot.action(/^cancel_order_(.+)$/, async (ctx) => {
-    let chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     let orderId = ctx.match[1];
     try {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
@@ -747,7 +647,6 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
 
 bot.action(/^gender_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     if (!userStates[chatId] || userStates[chatId].step !== 'GENDER') return;
 
     let gender = ctx.match[1];
@@ -774,7 +673,6 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
 
 bot.action(/^type_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
-    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
 
     let type = ctx.match[1];
@@ -822,41 +720,15 @@ bot.action(/^type_(.+)$/, async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
-    const username = ctx.chat.username || '';
+    await registerAdmin(chatId);
+    if (!userStates[chatId]) return;
+    let state = userStates[chatId];
+
+    await ctx.sendChatAction('typing');
+
     const msg = ctx.message;
     const text = msg.text || msg.caption || '';
-
-    try {
-        await pool.query(
-            "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-            [chatId, username]
-        );
-    } catch (err) {
-        console.error("Error saving telegram user:", err);
-    }
-
-    if (userStates[chatId] && userStates[chatId].action === 'WAITING_PIN') {
-        if (text.trim() === 'onedaybyday') {
-            await pool.query(
-                "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-                [chatId, username]
-            );
-            delete userStates[chatId];
-            return ctx.reply('✅ ផ្ទៀងផ្ទាត់ជោគជ័យ! ឥឡូវនេះអ្នកជា Admin ផ្លូវការរបស់ OneDay Clothing ហើយ។');
-        } else {
-            return ctx.reply('❌ លេខកូដសម្ងាត់មិនត្រឹមត្រូវទេ! សូមព្យាយាមម្តងទៀត (PIN: onedaybyday)');
-        }
-    }
-
-    if (!userStates[chatId]) return;
-
-    if (!(await isAdmin(chatId))) {
-        delete userStates[chatId];
-        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ។ សូមវាយ /start ដើម្បីផ្ទៀងផ្ទាត់ PIN Code ជាមុនសិន។');
-    }
-
-    let state = userStates[chatId];
-    await ctx.sendChatAction('typing');
+    const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
@@ -918,13 +790,13 @@ bot.on('message', async (ctx) => {
                     let filePath = path.join(videoDir, fileName);
                     fs.writeFileSync(filePath, buffer);
 
-                    videoUrl = `${HOST_URL}/videos/${fileName}`;
+                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
             } else if (text.trim()) {
                 let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
@@ -971,13 +843,13 @@ bot.on('message', async (ctx) => {
                     let filePath = path.join(videoDir, fileName);
                     fs.writeFileSync(filePath, buffer);
 
-                    videoUrl = `${HOST_URL}/videos/${fileName}`;
+                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
             } else if (text.trim()) {
                 let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
@@ -997,14 +869,8 @@ bot.on('message', async (ctx) => {
     }
 });
 
-// 🛠️ វិធីទី ១: លុប Webhook ចោល និងចាប់ផ្តើម Bot ឡើងវិញដោយ Polling ស្អាតល្អ
-bot.telegram.deleteWebhook().then(() => {
-    bot.launch();
-    console.log('Telegram Bot started successfully with polling...');
-}).catch((err) => {
-    console.error('Webhook deletion error:', err);
-    bot.launch();
-});
+bot.launch();
+console.log('Telegram Bot started successfully...');
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
