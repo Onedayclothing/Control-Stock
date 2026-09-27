@@ -459,7 +459,7 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 🌐 ពាក្យបញ្ជា /website
+// 🌐 ពាក្យបញ្ជា /website (អាប់ដេតមុខងារបន្ថែម)
 bot.command(['website', 'Website'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -472,8 +472,52 @@ bot.command(['website', 'Website'], async (ctx) => {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
+                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន (View Settings)', callback_data: 'web_view_settings' }],
                 [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
-                [{ text: '🎨 កែប្រែ UI Icons (Logo / Banner)', callback_data: 'web_edit_icon' }],
+                [{ text: '🎨 កែប្រែ UI Icons (Logo / Cart)', callback_data: 'web_edit_icon' }],
+                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_banner' }],
+                [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
+            ]
+        }
+    });
+});
+
+bot.action('web_view_settings', async (ctx) => {
+    try {
+        let result = await pool.query("SELECT * FROM website_settings");
+        let settings = {};
+        result.rows.forEach(r => settings[r.key] = r.value);
+
+        let msg = `⚙️ **ការកំណត់ Website បច្ចុប្បន្ន៖**\n\n`;
+        msg += `🎬 **Cover Video/Image:** ${settings.cover_url || 'Default'}\n`;
+        msg += `🖼️ **Logo URL:** ${settings.logo_url || 'Default'}\n`;
+        msg += `🛒 **Cart Icon URL:** ${settings.cart_icon_url || 'Default'}\n`;
+        msg += `📢 **Banner Title:** ${settings.main_title || 'BUILD YOUR DREAM STYLE'}\n`;
+
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(msg, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔙 ត្រឡប់ក្រោយ (Back)', callback_data: 'web_back_menu' }]
+                ]
+            }
+        });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហាទាញទិន្នន័យ', { show_alert: true });
+    }
+});
+
+bot.action('web_back_menu', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🌐 **កំណត់រចនាប័ទ្ម Website (Website Settings)**\n\nសូមជ្រើសរើសផ្នែកដែលបងចង់កែប្រែ៖', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន (View Settings)', callback_data: 'web_view_settings' }],
+                [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
+                [{ text: '🎨 កែប្រែ UI Icons (Logo / Cart)', callback_data: 'web_edit_icon' }],
+                [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_banner' }],
                 [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
             ]
         }
@@ -494,10 +538,18 @@ bot.action('web_edit_icon', async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '🖼️ រូប Logo ហាង (Header Logo)', callback_data: 'web_set_icon_logo' }],
-                [{ text: '🛒 រូប Cart Icon', callback_data: 'web_set_icon_cart' }]
+                [{ text: '🛒 រូប Cart Icon', callback_data: 'web_set_icon_cart' }],
+                [{ text: '🔙 ត្រឡប់ក្រោយ (Back)', callback_data: 'web_back_menu' }]
             ]
         }
     });
+});
+
+bot.action('web_edit_banner', async (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_BANNER' };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('📢 **សូមសរសេរពាក្យ/សារ Banner ថ្មី** (ឧ. BUILD YOUR DREAM STYLE ឬ PROMOTION 20% OFF):');
 });
 
 bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
@@ -1034,8 +1086,18 @@ bot.on('message', async (ctx) => {
     await ctx.sendChatAction('typing');
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
-    // 🎬 ១. ដំណើរការ Upload Cover ឬ Icon សម្រាប់ Website (/website)
+    // 🎬 ១. ដំណើរការ Upload / Edit សម្រាប់ Website (/website)
     if (state.action === 'WEBSITE') {
+        if (state.step === 'WAITING_BANNER') {
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលអក្សរដំណឹង/Banner!');
+            await pool.query(
+                "INSERT INTO website_settings (key, value) VALUES ('main_title', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                [text.trim()]
+            );
+            delete userStates[chatId];
+            return ctx.reply(`✅ **ជោគជ័យ!** Banner Title ថ្មីត្រូវបានអាប់ដេត៖\n"${text.trim()}"`, { parse_mode: 'Markdown' });
+        }
+
         let uploadedUrl = '';
 
         if (msg.video || msg.video_note || msg.animation || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
