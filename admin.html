@@ -32,7 +32,6 @@
         .header-actions { display: flex; gap: 8px; align-items: center; }
         .btn-header { background: var(--accent); color: #0f172a; border: none; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
-        /* Search Bar Box */
         .search-box-container { margin-bottom: 12px; display: none; }
         .search-box-container.active { display: block; }
         .search-input { width: 100%; padding: 10px 14px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--primary); font-size: 13px; outline: none; }
@@ -88,7 +87,6 @@
         const API_BASE = ""; 
         let allProductsCache = [];
 
-        // 🔒 មុខងារផ្ទៀងផ្ទាត់សិទ្ធិ Admin ជាមួយ Server មុននឹងអនុញ្ញាតឱ្យបើក Mini App
         async function verifyAndLoad() {
             let user = tg?.initDataUnsafe?.user;
             let telegramId = user ? user.id : 0;
@@ -112,7 +110,6 @@
                     return;
                 }
 
-                // បើមានសិទ្ធិ ដំណើរការទាញយកទិន្នន័យស្តុក
                 loadAdminProducts();
 
             } catch (err) {
@@ -226,7 +223,7 @@
 
         async function sendStockUpdate(ref, size, qty) {
             try {
-                let res = await fetch(`${API_BASE}/api/admin/update-stock`,.trim(), {
+                let res = await fetch(`${API_BASE}/api/admin/update-stock`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ref, size, qty })
