@@ -452,7 +452,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -1158,13 +1158,8 @@ bot.on('message', async (ctx) => {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
-            state.step = 'PRICE';
-            return ctx.reply('សូមបញ្ចូលតម្លៃលក់ (Selling Price - ឧ. 15.00):');
-        case 'PRICE':
-            let price = parseFloat(text);
-            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃលក់ជាតួលេខ!');
-            state.data.price = price;
-            state.data.cost_price = 0; // កំណត់ 0 ដោយស្វ័យប្រវត្តិ
+            state.data.price = 0; // កំណត់តម្លៃលក់ 0 ជា Default
+            state.data.cost_price = 0; // កំណត់ថ្លៃដើម 0 ជា Default
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
