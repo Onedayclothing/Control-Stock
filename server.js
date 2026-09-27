@@ -421,21 +421,22 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 👑 បញ្ជាពិសេសផ្ទាល់ខ្លួនសម្រាប់កំណត់ Account ខ្លួនឯងជា Owner ភ្លាមៗ (វាយម្ដងគ្រប់គ្រាន់)
+// 👑 បញ្ជាសម្រាប់កំណត់ Owner (មានសុវត្ថិភាពខ្ពស់ ប្រើបានតែពេលប្រព័ន្ធគ្មាន Owner ទេ)
 bot.command('setmeowner', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
     try {
-        // ដកសិទ្ធិ Owner ពីអ្នកដទៃទាំងអស់សិន ដើម្បីធានាថាមាន Owner តែម្នាក់
-        await pool.query("UPDATE admins SET is_owner = FALSE");
-        
-        // កំណត់ Account នេះជា Owner ផ្លូវការ
+        let checkOwner = await pool.query("SELECT * FROM admins WHERE is_owner = TRUE");
+        if (checkOwner.rows.length > 0) {
+            return ctx.reply('⛔️ ប្រព័ន្ធមាន Owner ផ្លូវការរួចរាល់ហើយ! មិនអាចប្រើคำสั่งនេះដើម្បីដណ្តើមសិទ្ធិបានទៀតទេ ដើម្បីសុវត្ថិភាព។');
+        }
+
         await pool.query(
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
             [chatId, username]
         );
-        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។ ឥឡូវនេះបងអាចប្រើប្រាស់คำสั่ง /checkadmin បានធម្មតា!');
+        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។ ឥឡូវនេះប្រព័ន្ធត្រូវបានລុក (Lock) សុវត្ថិភាព គ្មាននរណាម្នាក់អាចដណ្តើមបានទៀតទេ។');
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -559,7 +560,7 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
     }
 });
 
-// ➕ បន្ថែម Admin (មានតែ Owner ម្នាក់គត់ที่ใช้ได้)
+// ➕ បន្ថែម Admin (មានតែ Owner ម្នាក់គត់ដែលប្រើបាន)
 bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
