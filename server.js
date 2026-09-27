@@ -34,13 +34,30 @@ const bot = new Telegraf(BOT_TOKEN);
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
-// មុខងារកត់ត្រា Admin Chat ID ស្វ័យប្រវត្តិ
-async function registerAdmin(chatId) {
+// មុខងារពិនិត្យសិទ្ធិ Admin តាម chat_id ឬ username
+async function isAdminUser(chatId, username) {
     try {
-        await pool.query("INSERT INTO admins (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING", [chatId]);
+        let check = await pool.query(
+            "SELECT * FROM admins WHERE chat_id = $1 OR (username != '' AND LOWER(username) = LOWER($2))",
+            [chatId || 0, username || '']
+        );
+        return check.rows.length > 0;
     } catch (err) {
-        console.error("Error registering admin:", err);
+        console.error("Error checking admin:", err);
+        return false;
     }
+}
+
+// មុខងារពិនិត្យសិទ្ធិមុននឹងអនុញ្ញាតឱ្យប្រើ Command
+async function checkCommandAuth(ctx) {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    let authorized = await isAdminUser(chatId, username);
+    if (!authorized) {
+        ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់คำสั่งนี้ទេ! សូមវាយ /start ដើម្បីផ្ទៀងផ្ទាត់ Password។');
+        return false;
+    }
+    return true;
 }
 
 // មុខងារបកប្រែស្វ័យប្រវត្តិពី ខ្មែរ ទៅ EN និង ZH
@@ -99,9 +116,12 @@ async function initDB() {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS admins (
-                chat_id BIGINT PRIMARY KEY
+                id SERIAL PRIMARY KEY,
+                chat_id BIGINT UNIQUE,
+                username VARCHAR(255)
             );
         `);
+        await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS orders (
@@ -182,6 +202,17 @@ app.get('/api/stock', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// 🔒 API សម្រាប់ឆែកសិទ្ធិ Admin ពី Mini App
+app.post('/api/check-admin', async (req, res) => {
+    let { telegramId, username } = req.body;
+    try {
+        let authorized = await isAdminUser(telegramId, username);
+        res.json({ authorized });
+    } catch (err) {
+        res.status(500).json({ authorized: false, error: err.message });
     }
 });
 
@@ -304,7 +335,7 @@ app.post('/api/order', async (req, res) => {
         await client.query('COMMIT');
         client.release();
 
-        let adminsRes = await pool.query("SELECT chat_id FROM admins");
+        let adminsRes = await pool.query("SELECT chat_id FROM admins WHERE chat_id IS NOT NULL");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
             let custPhone = customer?.phone || customer?.phoneNumber || 'គ្មានលេខទូរស័ព្ទ';
@@ -364,13 +395,54 @@ app.post('/api/order', async (req, res) => {
 // --- TELEGRAM BOT COMMANDS & CALLBACKS ---
 
 bot.start(async (ctx) => {
-    await registerAdmin(ctx.chat.id);
-    ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    let authorized = await isAdminUser(chatId, username);
+    if (authorized) {
+        if (username) {
+            await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
+        }
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+    }
+
+    userStates[chatId] = { action: 'WAITING_PASSWORD' };
+    ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
+});
+
+// ➕ បន្ថែម Admin តាម Username (ឧ. /add@username)
+bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
+    let targetUsername = ctx.match[1].trim();
+    try {
+        await pool.query(
+            "INSERT INTO admins (username) VALUES ($1) ON CONFLICT DO NOTHING",
+            [targetUsername]
+        );
+        ctx.reply(`✅ បានបន្ថែម @${targetUsername} ជា Admin ជោគជ័យ!`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// ❌ លុបសិទ្ធិ Admin តាម Username (ឧ. /un@username)
+bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
+    let targetUsername = ctx.match[1].trim();
+    try {
+        await pool.query(
+            "DELETE FROM admins WHERE LOWER(username) = LOWER($1)",
+            [targetUsername]
+        );
+        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} រួចរាល់!`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
 });
 
 bot.command('add', async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
     const chatId = ctx.chat.id;
-    await registerAdmin(chatId);
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -387,7 +459,8 @@ bot.command('add', async (ctx) => {
     }
 });
 
-const cancelHandler = (ctx) => {
+const cancelHandler = async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
@@ -401,15 +474,15 @@ bot.command('cancel', cancelHandler);
 bot.command('cancle', cancelHandler);
 
 bot.command('change', async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
     ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
     await handleEditRefSelection(ctx, chatId, cleanRef);
@@ -504,8 +577,8 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 });
 
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
+    if (!await checkCommandAuth(ctx)) return;
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -559,8 +632,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 });
 
 bot.command('cleanup', async (ctx) => {
-    let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!await checkCommandAuth(ctx)) return;
     try {
         if (!fs.existsSync(videoDir)) {
             return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
@@ -725,14 +797,34 @@ bot.action(/^type_(.+)$/, async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    const msg = ctx.message;
+    const text = msg.text || msg.caption || '';
+
+    // 🔐 ឆែកមើល Password ពេល User មិនទាន់មានសិទ្ធិ
+    if (userStates[chatId] && userStates[chatId].action === 'WAITING_PASSWORD') {
+        if (text.trim() === 'onedaybyday') {
+            const username = ctx.from.username || '';
+            await pool.query(
+                "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+                [chatId, username]
+            );
+            delete userStates[chatId];
+            return ctx.reply('✅ Password ត្រឹមត្រូវ! អ្នកត្រូវបានអនុញ្ញាតឱ្យប្រើប្រាស់ប្រព័ន្ធរួចរាល់។ សូមផ្ញើ /start សារថ្មី។');
+        } else {
+            return ctx.reply('❌ Password មិនត្រឹមត្រូវទេ! សូមព្យាយាមបញ្ចូលម្តងទៀត៖');
+        }
+    }
+
+    let username = ctx.from.username || '';
+    let authorized = await isAdminUser(chatId, username);
+    if (!authorized) {
+        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ប្រព័ន្ធនេះទេ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
+    }
+
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
 
     await ctx.sendChatAction('typing');
-
-    const msg = ctx.message;
-    const text = msg.text || msg.caption || '';
     const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
 
     if (state.action === 'CHANGE') {
