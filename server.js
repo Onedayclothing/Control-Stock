@@ -126,8 +126,14 @@ async function initDB() {
         `);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE;`);
-        // 🛠️ ដោះស្រាយបញ្ហា chat_id NOT NULL ដោយអនុញ្ញាតឱ្យវាជា NULL បានពេល add តាម username
+        
+        // 🛠️ ដោះស្រាយបញ្ហា Constraint យ៉ាងម៉ត់ចត់
         await pool.query(`ALTER TABLE admins ALTER COLUMN chat_id DROP NOT NULL;`);
+        try {
+            await pool.query(`ALTER TABLE admins ADD CONSTRAINT admins_username_unique UNIQUE (username);`);
+        } catch (e) {
+            // Trường hợp constraint already exists
+        }
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS banned_admins (
@@ -423,7 +429,7 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 👑 បញ្ជាសម្រាប់កំណត់ Owner (មានសុវត្ថិភាពខ្ពស់ ប្រើបានតែពេលប្រព័ន្ធគ្មាន Owner ទេ)
+// 👑 បញ្ជាសម្រាប់កំណត់ Owner
 bot.command('setmeowner', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -431,26 +437,26 @@ bot.command('setmeowner', async (ctx) => {
     try {
         let checkOwner = await pool.query("SELECT * FROM admins WHERE is_owner = TRUE");
         if (checkOwner.rows.length > 0) {
-            return ctx.reply('⛔️ ប្រព័ន្ធមាន Owner ផ្លូវការរួចរាល់ហើយ! មិនអាចប្រើคำสั่งនេះដើម្បីដណ្តើមសិទ្ធិបានទៀតទេ ដើម្បីសុវត្ថិភាព។');
+            return ctx.reply('⛔️ ប្រព័ន្ធមាន Owner ផ្លូវការរួចរាល់ហើយ!');
         }
 
         await pool.query(
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
             [chatId, username]
         );
-        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។ ឥឡូវនេះប្រព័ន្ធត្រូវបានលុក (Lock) សុវត្ថិភាព គ្មាននរណាម្នាក់អាចដណ្តើមបានទៀតទេ។');
+        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។');
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
-// 👑 คำสั่ง /checkadmin (សម្រាប់ Owner មើលបញ្ជី Admin និងจัดการ)
+// 👑 คำสั่ง /checkadmin
 bot.command('checkadmin', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាង) ទេដែលអាចប្រើប្រាស់คำสั่งนี้ได้!\n*(ចំណាំ៖ បើបងជា Owner តែ Bot មិនស្គាល់ សូមវាយ /setmeowner ម្ដងជាការស្រេច)*');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งนี้បាន!');
     }
 
     try {
@@ -459,7 +465,7 @@ bot.command('checkadmin', async (ctx) => {
 
         let ownerText = ownerRes.rows.length > 0 ? (ownerRes.rows[0].username ? `@${ownerRes.rows[0].username}` : `ID: ${ownerRes.rows[0].chat_id}`) : 'មិនទាន់មាន';
         
-        let msg = `👑 **Owner (ម្ចាស់ហាង):** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីจัดการ (Transfer Owner ឬ Kick):`;
+        let msg = `👑 **Owner (ម្ចាស់ហាង):** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីจัดการ:`;
 
         let inlineKeyboard = [];
         adminsRes.rows.forEach(adm => {
@@ -481,7 +487,6 @@ bot.command('checkadmin', async (ctx) => {
     }
 });
 
-// ⚙️ Callback: ពេល Owner ចុចលើឈ្មោះ Admin ណាមួយ
 bot.action(/^manage_adm_(.+)$/, async (ctx) => {
     const target = ctx.match[1];
     const chatId = ctx.chat.id;
@@ -505,7 +510,6 @@ bot.action(/^manage_adm_(.+)$/, async (ctx) => {
     });
 });
 
-// 🔄 Callback: ផ្ទេរ Owner ទៅឱ្យ Admin នោះ
 bot.action(/^transfer_own_(.+)$/, async (ctx) => {
     const target = ctx.match[1];
     const chatId = ctx.chat.id;
@@ -520,14 +524,13 @@ bot.action(/^transfer_own_(.+)$/, async (ctx) => {
         await pool.query("UPDATE admins SET is_owner = TRUE WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target, target]);
 
         await ctx.answerCbQuery('✅ ផ្ទេរ Owner ជោគជ័យ!');
-        await ctx.editMessageText(`👑 បានផ្ទេរអំណាចជា Owner ទៅឱ្យ **@${target}** រួចរាល់ហើយ! ឥឡូវនេះអ្នកក្លាយជា Admin ធម្មតា។`, { parse_mode: 'Markdown' });
+        await ctx.editMessageText(`👑 បានផ្ទេរអំណាចជា Owner ទៅឱ្យ **@${target}** រួចរាល់ហើយ!`, { parse_mode: 'Markdown' });
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
         await ctx.editMessageText(`❌ បរាជ័យក្នុងការផ្ទេរ: ${err.message}`);
     }
 });
 
-// ❌ Callback: Kick Admin ចោល និង Block មិនឱ្យប្រើ Password ចូលវិញ
 bot.action(/^kick_adm_(.+)$/, async (ctx) => {
     const target = ctx.match[1];
     const chatId = ctx.chat.id;
@@ -555,49 +558,48 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
         }
 
         await ctx.answerCbQuery('❌ Kick ជោគជ័យ!');
-        await ctx.editMessageText(`❌ បាន Kick និង Block **@${target}** រួចរាល់! ពួកគាត់មិនអាចប្រើ Password ចូលវិញបានទេ។ (ប្រសិនបើចង់ឱ្យប្រើវិញ ត្រូវប្រើคำสั่ง /add@username)`, { parse_mode: 'Markdown' });
+        await ctx.editMessageText(`❌ បាន Kick និង Block **@${target}** រួចរាល់!`, { parse_mode: 'Markdown' });
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
         await ctx.editMessageText(`❌ បរាជ័យក្នុងការ Kick: ${err.message}`);
     }
 });
 
-// ➕ បន្ថែម Admin (មានតែ Owner ម្នាក់គត់ដែលប្រើបាន)
+// ➕ បន្ថែម Admin (ប្រើ ON CONFLICT (username))
 bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាងដើម) ទេដែលអាចប្រើប្រាស់คำสั่งបន្ថែម Admin បាន!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งបន្ថែម Admin បាន!');
     }
 
     let targetUsername = ctx.match[1].trim();
     try {
         await pool.query("DELETE FROM banned_admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         await pool.query(
-            "INSERT INTO admins (username, is_owner) VALUES ($1, FALSE) ON CONFLICT DO NOTHING",
+            "INSERT INTO admins (username, is_owner) VALUES ($1, FALSE) ON CONFLICT (username) DO UPDATE SET is_owner = FALSE",
             [targetUsername]
         );
-        ctx.reply(`✅ បានបន្ថែម ឬ reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
+        ctx.reply(`✅ បានបន្ថែម ឬ Reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
-// ❌ លុបសិទ្ធិ Admin តាម Username
 bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
 
     if (!await isOwnerUser(chatId, username)) {
-        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាងដើម) ទេដែលអាចប្រើប្រាស់คำสั่งដកសិទ្ធិ Admin បាន!');
+        return ctx.reply('⛔️ មានតែ Owner ទេដែលអាចប្រើប្រាស់คำสั่งដកសិទ្ធិ Admin បាន!');
     }
 
     let targetUsername = ctx.match[1].trim();
     try {
         let targetCheck = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         if (targetCheck.rows.length > 0 && targetCheck.rows[0].is_owner) {
-            return ctx.reply('❌ មិនអាចលុបសិទ្ធិរបស់ Owner (ម្ចាស់ហាង) បានទេ!');
+            return ctx.reply('❌ មិនអាចលុបសិទ្ធិរបស់ Owner បានទេ!');
         }
 
         if (targetCheck.rows.length > 0) {
@@ -611,7 +613,7 @@ bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
         }
 
         await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
-        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} និងទប់ស្កាត់មិនឱ្យប្រើ Password ចូលវិញរួចរាល់!`);
+        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} និងទប់ស្កាត់មិនឱ្យចូលវិញរួចរាល់!`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -634,7 +636,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
@@ -677,16 +679,13 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
     try {
         let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
         if (check.rows.length === 0) {
-            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
+            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
         }
         let prod = check.rows[0];
 
         userStates[chatId] = { action: 'CHANGE', step: 'SELECT_FIELD', data: { ref: cleanRef } };
 
-        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n`;
-        msg += `• ឈ្មោះ: ${prod.title_km}\n`;
-        msg += `• តម្លៃ: $${prod.price}\n\n`;
-        msg += `សូមជ្រើសរើសផ្នែកដែលចង់កែប្រែខាងក្រោម៖`;
+        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n• ឈ្មោះ: ${prod.title_km}\n• តម្លៃ: $${prod.price}\n\nសូមជ្រើសរើសផ្នែកដែលចង់កែប្រែ៖`;
 
         await ctx.reply(msg, {
             parse_mode: 'Markdown',
@@ -702,7 +701,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
             }
         });
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាស្វែងរកទំនិញ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 }
 
@@ -714,7 +713,7 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     if (field === 'cancel') {
         delete userStates[chatId];
         await ctx.answerCbQuery('❌ បានបោះបង់ការកែប្រែ');
-        return ctx.editMessageText('❌ បានលុបចោលដំណើរការកែប្រែរួចរាល់។');
+        return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់。');
     }
 
     if (field === 'gender') {
@@ -738,7 +737,7 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     
     let promptText = '';
     if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីជាតួលេខសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
+    else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
     else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
 
@@ -754,10 +753,10 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
         delete userStates[chatId];
         await ctx.answerCbQuery('✅ បានកែប្រែភេទជោគជ័យ!');
-        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទជា (${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}) រួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់。`);
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហា');
-        await ctx.editMessageText(`❌ បរាជ័យក្នុងការកែប្រែ: ${err.message}`);
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+        await ctx.editMessageText(`❌ បរាជ័យ: ${err.message}`);
     }
 });
 
@@ -769,39 +768,27 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
-    if (!cleanRef) {
-        return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. /deleteref7)');
-    }
+    if (!cleanRef) return ctx.reply('⚠️ សូមระบุលេខកូដទំនិញ (ឧ. /deleteref7)');
 
     try {
         let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-        if (check.rows.length === 0) {
-            return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ក្នុងប្រព័ន្ធឡើយ!`);
-        }
+        if (check.rows.length === 0) return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
 
         let product = check.rows[0];
-        let videoUrl = product.video_url;
-
-        if (videoUrl && videoUrl.includes('/videos/')) {
+        if (product.video_url && product.video_url.includes('/videos/')) {
             try {
-                let fileName = videoUrl.split('/videos/')[1];
+                let fileName = product.video_url.split('/videos/')[1];
                 let filePath = path.join(videoDir, fileName);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-            } catch (fileErr) {
-                console.error("Error deleting video file from disk:", fileErr);
-            }
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (e) {}
         }
 
         let deletedNum = parseInt(cleanRef);
-
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
         if (!isNaN(deletedNum)) {
             let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
-            
             for (let row of allProds.rows) {
                 let currentNum = parseInt(row.ref);
                 if (!isNaN(currentNum) && currentNum > deletedNum) {
@@ -812,9 +799,9 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             }
         }
 
-        ctx.reply(`🗑️ ជោគជ័យ! លុប Ref ${cleanRef}, បានលុបវីដេអូពី Volume និងបានរំកិលលេខ Ref ក្នុងប្រព័ន្ធរួចរាល់ហើយ。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+        ctx.reply(`🗑️ លុប Ref ${cleanRef} និងរំកិលលេខកូដទំនិញជោគជ័យ!`);
     } catch (err) {
-        ctx.reply(`❌ បរាជ័យក្នុងការលុบทំនិញ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
@@ -824,10 +811,7 @@ bot.command('cleanup', async (ctx) => {
     if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
 
     try {
-        if (!fs.existsSync(videoDir)) {
-            return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
-        }
-
+        if (!fs.existsSync(videoDir)) return ctx.reply('⚠️ គ្មាន Folder វីដេអូទេ!');
         let files = fs.readdirSync(videoDir);
         let prodRes = await pool.query("SELECT video_url FROM products");
         let usedFiles = new Set();
@@ -835,29 +819,23 @@ bot.command('cleanup', async (ctx) => {
         prodRes.rows.forEach(p => {
             if (p.video_url) {
                 let parts = p.video_url.split('/videos/');
-                if (parts.length > 1) {
-                    usedFiles.add(parts[1]);
-                }
+                if (parts.length > 1) usedFiles.add(parts[1]);
             }
         });
 
         let deletedCount = 0;
-        
         files.forEach(file => {
             if (!usedFiles.has(file)) {
-                let filePath = path.join(videoDir, file);
                 try {
-                    fs.unlinkSync(filePath);
+                    fs.unlinkSync(path.join(videoDir, file));
                     deletedCount++;
-                } catch (e) {
-                    console.error(`Failed to delete file ${file}:`, e);
-                }
+                } catch (e) {}
             }
         });
 
-        ctx.reply(`🧹 សម្អាត Volume បានជោគជ័យ!\n• បានលុបវីដេអូចាស់ៗចំនួន: ${deletedCount} ហ្វាល\n• រំដោះទំហំ Disk របស់ Server រួចរាល់។`);
+        ctx.reply(`🧹 សម្អាតវីដេអូចាស់ៗបានចំនួន ${deletedCount} ហ្វាល!`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងការសម្អាត: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
@@ -865,13 +843,11 @@ bot.action(/^confirm_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
     try {
         await pool.query("UPDATE orders SET status = 'CONFIRMED' WHERE id = $1", [orderId]);
-        await ctx.answerCbQuery('✅ បានបញ្ជាក់ការកុម្មង់រួចរាល់!');
+        await ctx.answerCbQuery('✅ បានបញ្ជាក់ការកុម្មង់!');
         let originalText = ctx.callbackQuery.message.text;
-        await ctx.editMessageText(originalText + '\n\nstatus: ✅ Confirmed (បានបញ្ជាក់ការកុម្មង់)', {
-            reply_markup: { inline_keyboard: [] }
-        });
+        await ctx.editMessageText(originalText + '\n\nstatus: ✅ Confirmed', { reply_markup: { inline_keyboard: [] } });
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហា: ' + err.message);
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
     }
 });
 
@@ -879,36 +855,25 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
     let orderId = ctx.match[1];
     try {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
-        if (orderRes.rows.length === 0) {
-            return ctx.answerCbQuery('❌ រកមិនឃើញព័ត៌មានកុម្មង់នេះទេ!');
-        }
+        if (orderRes.rows.length === 0) return ctx.answerCbQuery('❌ រកមិនឃើញ!');
         let order = orderRes.rows[0];
-        if (order.status === 'CANCELLED') {
-            return ctx.answerCbQuery('⚠️ ការកុម្មង់នេះត្រូវបានលុបចោលរួចហើយ!');
-        }
+        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️ លុបចោលរួចហើយ!');
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-
         for (let key in items) {
             let item = items[key];
-            let cleanRef = String(item.ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
-            let cleanSize = String(item.size).trim().toUpperCase();
-            let qty = parseInt(item.qty) || 0;
-
             await pool.query(
                 "UPDATE stock SET stock_qty = stock_qty + $1 WHERE UPPER(ref) = $2 AND UPPER(size) = $3",
-                [qty, cleanRef, cleanSize]
+                [parseInt(item.qty) || 0, String(item.ref).toUpperCase(), String(item.size).toUpperCase()]
             );
         }
 
         await pool.query("UPDATE orders SET status = 'CANCELLED' WHERE id = $1", [orderId]);
-        await ctx.answerCbQuery('❌ បានបដិសេធ និងសងស្តុកចូលវិញជោគជ័យ!');
+        await ctx.answerCbQuery('❌ បានបដិសេធ និងសងស្តុកចូលវិញ!');
         let originalText = ctx.callbackQuery.message.text;
-        await ctx.editMessageText(originalText + '\n\nstatus: ❌ Cancelled & Stock Restored (បដិសេធ និងសងស្តុកចូលស្តុកវិញរួចរាល់)', {
-            reply_markup: { inline_keyboard: [] }
-        });
+        await ctx.editMessageText(originalText + '\n\nstatus: ❌ Cancelled & Stock Restored', { reply_markup: { inline_keyboard: [] } });
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហា: ' + err.message);
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
     }
 });
 
@@ -921,8 +886,8 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
     userStates[chatId].step = 'TYPE';
 
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`🚻 ប្រភេទភេទដែលបានជ្រើសរើស: ${gender === 'men' ? 'Men (បុរស)' : 'Women (នារី)'}`);
-    await ctx.reply('សូមបញ្ជាក់ប្រភេទ (សូមជ្រើសរើសប៊ូតុងខាងក្រោម):', {
+    await ctx.editMessageText(`🚻 ភេទ: ${gender === 'men' ? 'Men' : 'Women'}`);
+    await ctx.reply('សូមបញ្ជាក់ប្រភេទ:', {
         reply_markup: {
             inline_keyboard: [
                 [
@@ -947,12 +912,11 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     let state = userStates[chatId];
 
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`🏷️ ប្រភេទដែលបានជ្រើសរើស: ${type}`);
+    await ctx.editMessageText(`🏷️ ប្រភេទ: ${type}`);
 
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
         let parsedPrice = parseFloat(state.data.price) || 0;
-
         let tTitle = await autoTranslate(state.data.title_km);
         let tDesc = await autoTranslate(state.data.desc_km || '');
 
@@ -968,18 +932,15 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
             for (let size of sizes) {
                 await pool.query(
-                    `INSERT INTO stock (ref, size, stock_qty, price) 
-                     VALUES ($1, $2, $3, $4) 
-                     ON CONFLICT (ref, size) DO UPDATE 
-                     SET price = $4`,
+                    `INSERT INTO stock (ref, size, stock_qty, price) VALUES ($1, $2, $3, $4) ON CONFLICT (ref, size) DO UPDATE SET price = $4`,
                     [cleanRef, size, 0, parsedPrice]
                 );
             }
         }
 
-        await ctx.reply('សំណើរបានជោគជ័យ និងបកប្រែស្វ័យប្រវត្តិរួចរាល់ 📦');
+        await ctx.reply('បន្ថែមទំនិញថ្មី និងបកប្រែស្វ័យប្រវត្តិជោគជ័យ! 📦');
     } catch (err) {
-        await ctx.reply(`❌ បរាជ័យក្នុងការកត់ត្រាចូល Database: ${err.message}`);
+        await ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 
     delete userStates[chatId];
@@ -998,7 +959,7 @@ bot.on('message', async (ctx) => {
         );
         if (banCheck.rows.length > 0) {
             delete userStates[chatId];
-            return ctx.reply('⛔️ អ្នកត្រូវបានគេដកសិទ្ធិ (Ban) ពីប្រព័ន្ធហើយ មិនអាចប្រើ Password ចូលវិញបានទេ!');
+            return ctx.reply('⛔️ អ្នកត្រូវបានគេដកសិទ្ធិ (Ban) ពីប្រព័ន្ធហើយ!');
         }
 
         if (text.trim() === 'onedaybyday') {
@@ -1010,15 +971,15 @@ bot.on('message', async (ctx) => {
                 [chatId, username, isFirst]
             );
             delete userStates[chatId];
-            return ctx.reply(isFirst ? '👑 Password ត្រឹមត្រូវ! អ្នកត្រូវបានកំណត់ជា Owner (ម្ចាស់ហាង) ផ្លូវការរួចរាល់!' : '✅ Password ត្រឹមត្រូវ! អ្នកត្រូវបានអនុញ្ញាតឱ្យប្រើប្រាស់ប្រព័ន្ធ។ សូមផ្ញើ /start សារថ្មី។');
+            return ctx.reply(isFirst ? '👑 Password ត្រឹមត្រូវ! អ្នកជា Owner ផ្លូវការ!' : '✅ Password ត្រឹមត្រូវ! សូមផ្ញើ /start សារថ្មី។');
         } else {
-            return ctx.reply('❌ Password មិនត្រឹមត្រូវទេ! សូមព្យាយាមបញ្ចូលម្តងទៀត៖');
+            return ctx.reply('❌ Password មិនត្រឹមត្រូវទេ!');
         }
     }
 
     let authorized = await isAdminUser(chatId, username);
     if (!authorized) {
-        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ប្រព័ន្ធនេះទេ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
+        return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
     }
 
     if (!userStates[chatId]) return;
@@ -1030,130 +991,97 @@ bot.on('message', async (ctx) => {
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
             let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
-            if (!cleanRef) return ctx.reply('⚠️ សូមបញ្ចូលលេខ Ref ឱ្យបានត្រឹមត្រូវ!');
+            if (!cleanRef) return ctx.reply('⚠️ សូមបញ្ចូលលេខ Ref!');
             delete userStates[chatId];
             return handleEditRefSelection(ctx, chatId, cleanRef);
         }
 
         let ref = state.data.ref;
-
         if (state.step === 'UPDATE_TITLE') {
-            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះទំនិញថ្មី!');
-            let newTitle = text.trim();
-            let tTitle = await autoTranslate(newTitle);
-
-            await pool.query(
-                "UPDATE products SET title_km = $1, title_en = $2, title_zh = $3 WHERE UPPER(ref) = $4", 
-                [newTitle, tTitle.en, tTitle.zh, ref]
-            );
+            if (!text.trim()) return ctx.reply('⚠️ សូមបញ្ចូលឈ្មោះ!');
+            let tTitle = await autoTranslate(text.trim());
+            await pool.query("UPDATE products SET title_km = $1, title_en = $2, title_zh = $3 WHERE UPPER(ref) = $4", [text.trim(), tTitle.en, tTitle.zh, ref]);
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែឈ្មោះថ្មី និងបកប្រែស្វ័យប្រវត្តិរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ កែប្រែឈ្មោះ Ref ${ref} ជោគជ័យ!`);
         }
-
         if (state.step === 'UPDATE_PRICE') {
             let newPrice = parseFloat(text);
-            if (isNaN(newPrice)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខត្រឹមត្រូវ (ឧ. 15.00)');
+            if (isNaN(newPrice)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខ!');
             await pool.query("UPDATE products SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
             await pool.query("UPDATE stock SET price = $1 WHERE UPPER(ref) = $2", [newPrice, ref]);
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែតម្លៃថ្មី ($${newPrice.toFixed(2)}) រួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ កែប្រែតម្លៃ Ref ${ref} ជោគជ័យ!`);
         }
-
         if (state.step === 'UPDATE_DESC') {
-            let newDesc = text.trim();
-            let tDesc = await autoTranslate(newDesc);
-
-            await pool.query(
-                "UPDATE products SET desc_km = $1, desc_en = $2, desc_zh = $3 WHERE UPPER(ref) = $4", 
-                [newDesc, tDesc.en, tDesc.zh, ref]
-            );
+            let tDesc = await autoTranslate(text.trim());
+            await pool.query("UPDATE products SET desc_km = $1, desc_en = $2, desc_zh = $3 WHERE UPPER(ref) = $4", [text.trim(), tDesc.en, tDesc.zh, ref]);
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែការបរិយាយថ្មី និងបកប្រែស្វ័យប្រវត្តិរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ កែប្រែការបរិយាយ Ref ${ref} ជោគជ័យ!`);
         }
-
         if (state.step === 'UPDATE_VIDEO') {
             let videoUrl = '';
             if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
                 try {
                     let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
                     let link = await ctx.telegram.getFileLink(fileId);
-                    let urlStr = typeof link === 'string' ? link : link.href || link.toString();
-                    
-                    let response = await fetch(urlStr);
-                    let arrayBuffer = await response.arrayBuffer();
-                    let buffer = Buffer.from(arrayBuffer);
-                    
+                    let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
+                    let buffer = Buffer.from(await response.arrayBuffer());
                     let fileName = `vid_${Date.now()}.mp4`;
-                    let filePath = path.join(videoDir, fileName);
-                    fs.writeFileSync(filePath, buffer);
-
+                    fs.writeFileSync(path.join(videoDir, fileName), buffer);
                     videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
                 } catch (err) {
-                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
+                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
-
             await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
             delete userStates[chatId];
-            return ctx.reply(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែវីដេអូថ្មីរួចរាល់。\n\n🌐 Website នឹងធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ។`);
+            return ctx.reply(`✅ កែប្រែវីដេអូ Ref ${ref} ជោគជ័យ!`);
         }
         return;
     }
 
     switch (state.step) {
         case 'TITLE':
-            if (!text.trim()) return ctx.reply('⚠️ សរសេរ : បញ្ចូលឈ្មោះទំនិញ');
+            if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
             state.step = 'PRICE';
-            return ctx.reply('សរសេរ : បញ្ចូលតម្លៃទំនិញ');
-
+            return ctx.reply('សូមបញ្ចូលតម្លៃទំនិញ:');
         case 'PRICE':
             let price = parseFloat(text);
-            if (isNaN(price)) return ctx.reply('⚠️ សរសេរ : បញ្ចូលតម្លៃទំនិញ (ជាតួលេខ ឧ. 15.00)');
+            if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃជាតួលេខ!');
             state.data.price = price;
             state.step = 'DESC';
-            return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ !');
-
+            return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
             state.data.desc_km = text.trim();
             state.step = 'VIDEO';
-            return ctx.reply('សុំ Upload Video');
-
+            return ctx.reply('សុំ Upload Video:');
         case 'VIDEO':
             let videoUrl = '';
             if (msg.video || msg.video_note || (msg.document && msg.document.mime_type && msg.document.mime_type.startsWith('video/'))) {
                 try {
                     let fileId = msg.video ? msg.video.file_id : (msg.video_note ? msg.video_note.file_id : msg.document.file_id);
                     let link = await ctx.telegram.getFileLink(fileId);
-                    let urlStr = typeof link === 'string' ? link : link.href || link.toString();
-                    
-                    let response = await fetch(urlStr);
-                    let arrayBuffer = await response.arrayBuffer();
-                    let buffer = Buffer.from(arrayBuffer);
-                    
+                    let response = await fetch(typeof link === 'string' ? link : link.href || link.toString());
+                    let buffer = Buffer.from(await response.arrayBuffer());
                     let fileName = `vid_${Date.now()}.mp4`;
-                    let filePath = path.join(videoDir, fileName);
-                    fs.writeFileSync(filePath, buffer);
-
+                    fs.writeFileSync(path.join(videoDir, fileName), buffer);
                     videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
                 } catch (err) {
-                    return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
+                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
-
             state.data.video_url = videoUrl;
             state.step = 'GENDER';
-            return ctx.reply('ជ្រើសរើសប្រភេទ ភេទ:', {
+            return ctx.reply('ជ្រើសរើសប្រភេទភេទ:', {
                 reply_markup: {
                     inline_keyboard: [
                         [
