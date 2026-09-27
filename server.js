@@ -170,12 +170,12 @@ async function initDB() {
         let checkProd = await pool.query("SELECT COUNT(*) FROM products");
         if (parseInt(checkProd.rows[0].count) === 0) {
             const initialProducts = [
-                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', 15.00, 10.00],
-                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', 6.00, 3.50],
-                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', 20.00, 12.00],
-                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', 7.00, 4.00],
-                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', 12.00, 7.00],
-                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00, 11.00]
+                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', 15.00, 0.00],
+                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', 6.00, 0.00],
+                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', 20.00, 0.00],
+                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', 7.00, 0.00],
+                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', 12.00, 0.00],
+                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00, 0.00]
             ];
             for (let prod of initialProducts) {
                 let tTitle = await autoTranslate(prod[1]);
@@ -276,11 +276,11 @@ app.post('/api/admin/update-stock', async (req, res) => {
 });
 
 app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, price, cost_price, initial_stock } = req.body;
+    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
-        let parsedCost = parseFloat(cost_price) || 0;
+        let parsedCost = 0;
         let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 0;
 
         let tTitle = await autoTranslate(title_km);
@@ -302,13 +302,6 @@ app.post('/api/admin/add-product', async (req, res) => {
                  ON CONFLICT (ref, size) DO UPDATE 
                  SET price = $4`,
                 [cleanRef, size, defaultQty, parsedPrice]
-            );
-        }
-
-        if (defaultQty > 0) {
-            await pool.query(
-                "INSERT INTO purchases (ref, size, qty, cost_price, total_cost) VALUES ($1, 'ALL', $2, $3, $4)",
-                [cleanRef, defaultQty * sizes.length, parsedCost, defaultQty * sizes.length * parsedCost]
             );
         }
 
@@ -459,7 +452,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -704,7 +697,7 @@ const cancelHandler = async (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់。');
+        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
@@ -740,7 +733,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
 
         userStates[chatId] = { action: 'CHANGE', step: 'SELECT_FIELD', data: { ref: cleanRef } };
 
-        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n• ឈ្មោះ: ${prod.title_km}\n• តម្លៃលក់: $${prod.price}\n• ថ្លៃដើម: $${prod.cost_price}\n\nសូមជ្រើសរើសផ្នែកដែលចង់កែប្រែ៖`;
+        let msg = `⚙️ **កែប្រែទំនិញ Ref : ${cleanRef}**\n• ឈ្មោះ: ${prod.title_km}\n• តម្លៃលក់: $${prod.price}\n\nសូមជ្រើសរើសផ្នែកដែលចង់កែប្រែ៖`;
 
         await ctx.reply(msg, {
             parse_mode: 'Markdown',
@@ -748,7 +741,6 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
                 inline_keyboard: [
                     [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
                     [{ text: '💵 កែប្រែតម្លៃលក់ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
-                    [{ text: '🏷️ កែប្រែថ្លៃដើម (Cost Price)', callback_data: `edit_f_cost_${cleanRef}` }],
                     [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
                     [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
                     [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
@@ -761,7 +753,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
     }
 }
 
-bot.action(/^edit_f_(title|price|cost|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
+bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
     let field = ctx.match[1];
     let ref = ctx.match[2];
     let chatId = ctx.chat.id;
@@ -769,7 +761,7 @@ bot.action(/^edit_f_(title|price|cost|desc|video|gender|cancel)_(.+)$/, async (c
     if (field === 'cancel') {
         delete userStates[chatId];
         await ctx.answerCbQuery('❌ បានបោះបង់');
-        return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់。');
+        return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់។');
     }
 
     if (field === 'gender') {
@@ -794,7 +786,6 @@ bot.action(/^edit_f_(title|price|cost|desc|video|gender|cancel)_(.+)$/, async (c
     let promptText = '';
     if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃលក់ថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
-    else if (field === 'cost') promptText = `🏷️ សូមសរសេរថ្លៃដើមថ្មីសម្រាប់ Ref ${ref} (ឧ. 10.00):`;
     else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
 
@@ -810,7 +801,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
         delete userStates[chatId];
         await ctx.answerCbQuery('✅ បានកែប្រែភេទជោគជ័យ!');
-        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់。`);
+        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់។`);
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
     }
@@ -973,7 +964,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
         let parsedPrice = parseFloat(state.data.price) || 0;
-        let parsedCost = parseFloat(state.data.cost_price) || 0;
+        let parsedCost = 0;
         let tTitle = await autoTranslate(state.data.title_km);
         let tDesc = await autoTranslate(state.data.desc_km || '');
 
@@ -995,7 +986,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             }
         }
 
-        await ctx.reply('បន្ថែមទំនិញថ្មី និងកត់ត្រាថ្លៃដើមជោគជ័យ! 📦');
+        await ctx.reply('បន្ថែមទំនិញថ្មីជោគជ័យ! 📦');
     } catch (err) {
         await ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1035,7 +1026,7 @@ bot.on('message', async (ctx) => {
     }
 
     let authorized = await isAdminUser(chatId, username);
-    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password。');
+    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
 
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
@@ -1130,13 +1121,6 @@ bot.on('message', async (ctx) => {
             delete userStates[chatId];
             return ctx.reply(`✅ កែប្រែតម្លៃលក់ Ref ${ref} ជោគជ័យ!`);
         }
-        if (state.step === 'UPDATE_COST') {
-            let newCost = parseFloat(text);
-            if (isNaN(newCost)) return ctx.reply('⚠️ សូមបញ្ចូលថ្លៃដើមជាតួលេខ!');
-            await pool.query("UPDATE products SET cost_price = $1 WHERE UPPER(ref) = $2", [newCost, ref]);
-            delete userStates[chatId];
-            return ctx.reply(`✅ កែប្រែថ្លៃដើម Ref ${ref} ជោគជ័យ!`);
-        }
         if (state.step === 'UPDATE_DESC') {
             let tDesc = await autoTranslate(text.trim());
             await pool.query("UPDATE products SET desc_km = $1, desc_en = $2, desc_zh = $3 WHERE UPPER(ref) = $4", [text.trim(), tDesc.en, tDesc.zh, ref]);
@@ -1180,12 +1164,7 @@ bot.on('message', async (ctx) => {
             let price = parseFloat(text);
             if (isNaN(price)) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃលក់ជាតួលេខ!');
             state.data.price = price;
-            state.step = 'COST_PRICE';
-            return ctx.reply('សូមបញ្ចូលថ្លៃដើមទិញចូល (Cost Price - ឧ. 10.00):');
-        case 'COST_PRICE':
-            let costPrice = parseFloat(text);
-            if (isNaN(costPrice)) return ctx.reply('⚠️ សូមបញ្ចូលថ្លៃដើមជាតួលេខ!');
-            state.data.cost_price = costPrice;
+            state.data.cost_price = 0; // កំណត់ 0 ដោយស្វ័យប្រវត្តិ
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
