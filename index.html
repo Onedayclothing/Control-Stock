@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Oneday Clothing | Premium Collection</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Content:wght@400;700&family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- OpenStreetMap (Leaflet.js) CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --primary: #0f172a;
+            --accent: #0284c7;
+            --accent-light: #e0f2fe;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #cbd5e1;
+            --text-muted: #64748b;
+            --nav-bg: rgba(255, 255, 255, 0.95);
+            --modal-bg: #ffffff;
+            --input-bg: #f8fafc;
+            --nav-font: 'Kantumruy Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body.dark-mode {
+            --primary: #f8fafc;
+            --accent: #38bdf8;
+            --accent-light: #1e293b;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-muted: #94a3b8;
+            --nav-bg: rgba(15, 23, 42, 0.95);
+            --modal-bg: #1e293b;
+            --input-bg: #0f172a;
+        }
+
+        html, body {
+            touch-action: pan-x pan-y;
+            -webkit-text-size-adjust: 100%;
+            overflow-x: hidden;
+            width: 100%;
+            position: relative;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Kantumruy Pro', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 120px; transition: background-color 0.3s, color 0.3s; }
+
+        input, select, textarea {
+            font-size: 16px !important;
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        nav { 
+            background: var(--nav-bg); 
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color); 
+            padding: 8px 12px; 
+            position: sticky; 
+            top: 0; 
+            z-index: 50; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
+            transition: background 0.3s; 
+        }
+
+        .logo { 
+            font-size: 18px; 
+            font-weight: 800; 
+            letter-spacing: -0.5px; 
+            color: var(--accent); 
+            line-height: 1;
+            font-family: var(--nav-font);
+        }
+        .logo span { color: var(--primary); }
+
+        .nav-right { display: flex; align-items: center; gap: 5px; }
+        .nav-icon-img { width: 13px; height: 13px; object-fit: contain; display: inline-block; vertical-align: middle; }
+
+        .guide-top-btn { 
+            background: var(--accent-light); 
+            border: 1px solid var(--border-color); 
+            color: var(--primary); 
+            padding: 0 8px; 
+            height: 30px;
+            border-radius: 16px; 
+            font-size: 10px; 
+            font-weight: 600; 
+            font-family: var(--nav-font);
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 4px; 
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        .theme-toggle-btn { 
+            background: var(--accent-light); 
+            border: 1px solid var(--border-color); 
+            color: var(--primary); 
+            width: 30px; 
+            height: 30px; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            flex-shrink: 0;
+            padding: 0;
+        }
+
+        .theme-toggle-btn img { width: 14px; height: 14px; object-fit: contain; }
+
+        .lang-select-wrapper { position: relative; display: flex; align-items: center; }
+        .lang-flag-img { position: absolute; left: 7px; width: 15px; height: 11px; pointer-events: none; z-index: 2; object-fit: cover; border-radius: 2px; box-shadow: 0 0 1px rgba(0,0,0,0.3); }
+
+        .lang-select { 
+            background: var(--accent-light); 
+            border: 1px solid var(--border-color); 
+            color: var(--primary); 
+            padding: 0 16px 0 26px; 
+            height: 30px;
+            border-radius: 16px; 
+            font-size: 10px; 
+            font-weight: 600; 
+            font-family: var(--nav-font);
+            cursor: pointer; 
+            outline: none; 
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%230284c7%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 5px center;
+            background-size: 7px auto;
+        }
+
+        .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 16px; position: relative; }
+        .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+        .cover-slider::-webkit-scrollbar { display: none; }
+        .cover-slide-item { flex: 0 0 100%; width: 100%; scroll-snap-align: start; }
+        
+        .cover-image-box { width: 100%; max-height: 220px; background-color: #0f172a; overflow: hidden; position: relative; }
+        .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
+        .cover-image-box video { width: 100%; height: 100%; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
+
+        .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; background: var(--card-bg); }
+        .cover-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
+        .cover-dot.active { width: 18px; border-radius: 4px; background: var(--accent); }
+
+        .cover-info { text-align: center; padding: 10px 14px 14px; background: var(--card-bg); }
+        .sub-title { font-size: 10px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+        .main-title { font-size: 18px; font-weight: 900; text-transform: uppercase; color: var(--primary); }
+
+        .menu-wrapper { 
+            padding: 8px 12px 12px; 
+            max-width: 480px; 
+            margin: 0 auto; 
+            position: sticky;
+            top: 47px;
+            background: var(--bg-color); 
+            z-index: 45; 
+            transition: background 0.3s;
+        }
+        .categories { display: flex; background: var(--accent-light); padding: 4px; border-radius: 24px; gap: 4px; margin-bottom: 8px; border: 1px solid var(--border-color); }
+        .cat-btn { flex: 1; background: transparent; border: none; padding: 8px 0; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: var(--nav-font); color: var(--text-muted); cursor: pointer; text-align: center; transition: all 0.2s; }
+        .cat-btn.active { background: var(--card-bg); color: var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.08); font-weight: 700; }
+
+        .sub-categories { display: none; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+        .sub-categories.active { display: flex; }
+        .sub-btn { background: var(--card-bg); border: 1px solid var(--border-color); padding: 5px 12px; border-radius: 14px; font-size: 10px; font-weight: 600; font-family: var(--nav-font); white-space: nowrap; cursor: pointer; color: var(--text-muted); }
+        .sub-btn.active { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
+
+        .container { max-width: 480px; margin: 0 auto; padding: 0 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 10px; position: relative; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02); }
+        
+        .img-box { background: var(--input-bg); aspect-ratio: 9/16; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border-color); position: relative; }
+        .img-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
+        .img-box img, .img-box video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
+        
+        .badge { position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.9); color: white; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; z-index: 10; }
+        .prod-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; min-height: 30px; line-height: 1.4; color: var(--primary); }
+        .prod-desc { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; min-height: 26px; line-height: 1.4; }
+        
+        .price-box { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+        .price-icon { width: 15px; height: 15px; object-fit: contain; }
+        .price { font-size: 15px; font-weight: 900; color: var(--accent); }
+
+        .size-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .size-label { font-size: 9px; font-weight: 800; color: var(--text-muted); }
+        
+        .size-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-bottom: 8px; }
+        .size-btn { border: 1px solid var(--border-color); background: var(--input-bg); padding: 6px 0; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; text-align: center; color: var(--primary); }
+        .size-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .stock-hint-box { font-size: 10px; color: var(--text-muted); font-weight: 700; text-align: center; margin-bottom: 8px; min-height: 15px; }
+        .stock-hint-box span { color: var(--accent); font-weight: 900; }
+
+        .btn-add { width: 100%; background: var(--primary); color: var(--bg-color); border: none; padding: 10px; border-radius: 8px; font-weight: 700; font-size: 11px; cursor: pointer; transition: background 0.2s; }
+        .btn-add:active { background: var(--accent); }
+
+        .cart-checkout-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav-bg); backdrop-filter: blur(12px); border-top: 1px solid var(--border-color); padding: 12px 16px; z-index: 100; box-shadow: 0 -4px 15px rgba(0,0,0,0.05); }
+        .bar-content { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .total-price { font-size: 17px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+        .total-label { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+        .bar-buttons { display: flex; gap: 8px; }
+        .btn-cart-view { background: var(--accent-light); color: var(--primary); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .btn-telegram { background: var(--accent); color: white; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); display: flex; align-items: center; gap: 6px; }
+
+        .btn-order-img { width: 16px; height: 16px; object-fit: contain; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); z-index: 200; display: none; justify-content: flex-end; flex-direction: column; backdrop-filter: blur(4px); pointer-events: none; opacity: 0; transition: opacity 0.2s ease; }
+        .modal-overlay.active { display: flex; pointer-events: auto; opacity: 1; }
+        .modal-content { background: var(--modal-bg); color: var(--primary); border-radius: 24px 24px 0 0; padding: 20px; max-height: 85vh; overflow-y: auto; max-width: 480px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); border-top: 1px solid var(--border-color); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 14px; }
+        .modal-title { font-size: 16px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 6px; }
+        .modal-title-img { width: 20px; height: 20px; object-fit: contain; }
+        .btn-close { background: var(--accent-light); border: none; font-size: 14px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: var(--text-muted); }
+
+        #cart-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; max-height: 260px; }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 10px 0; }
+        .item-info { font-size: 12px; font-weight: 800; color: var(--primary); }
+        .item-sub { font-size: 10px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+        .qty-controls { display: flex; align-items: center; gap: 6px; }
+        .btn-qty { background: var(--accent-light); color: var(--accent); border: 1px solid var(--border-color); width: 26px; height: 26px; border-radius: 8px; font-weight: 900; cursor: pointer; }
+        .btn-delete-item { background: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; width: 26px; height: 26px; border-radius: 8px; font-weight: 800; cursor: pointer; margin-left: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+        .empty-msg { text-align: center; color: var(--text-muted); padding: 20px 0; font-size: 12px; }
+
+        .summary-box { border-top: 1px solid var(--border-color); padding-top: 10px; padding-bottom: 4px; display: flex; flex-direction: column; gap: 6px; }
+        .summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); font-weight: 700; }
+
+        .delivery-fee-label { display: flex; align-items: center; gap: 6px; }
+        .delivery-img-icon { height: 18px; object-fit: contain; }
+
+        .checkout-form { border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+        .form-label { font-size: 11px; font-weight: 800; color: var(--primary); }
+        .form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; outline: none; background: var(--input-bg); color: var(--primary); }
+        .form-input:focus { border-color: var(--accent); background: var(--card-bg); box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1); }
+        .form-input.error { border-color: #ef4444; background: #fef2f2; }
+
+        .modal-footer { border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+        .modal-total-row { display: flex; justify-content: space-between; align-items: center; }
+        .modal-total-label { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
+        .modal-total-amount { font-size: 18px; font-weight: 900; color: var(--accent); display: flex; align-items: center; gap: 4px; }
+        .btn-modal-telegram { width: 100%; background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 13px; text-align: center; cursor: pointer; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        .guide-step { font-size: 12px; line-height: 1.8; color: var(--primary); margin-bottom: 8px; font-weight: 600; }
+
+        .toast-notification {
+            position: fixed;
+            bottom: 75px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(15, 23, 42, 0.9);
+            color: #ffffff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            z-index: 300;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .toast-notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .fly-item {
+            position: fixed;
+            z-index: 9999;
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 50%;
+            pointer-events: none;
+            transition: all 0.8s cubic-bezier(0.2, 1, 0.3, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">Oneday<span>.</span></div>
+        <div class="nav-right">
+            <button class="guide-top-btn" onclick="toggleGuideModal()">
+                <img src="images/IMG_5832.png" alt="Guide" class="nav-icon-img">
+                <span data-key="guide_btn_text">របៀបកុម្មង់</span>
+            </button>
+            
+            <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">
+                <img id="themeImg" src="images/IMG_5830.png" alt="Theme Toggle">
+            </button>
+
+            <div class="lang-select-wrapper">
+                <img id="langFlagImg" src="images/IMG_5833.png" alt="Language Flag" class="lang-flag-img">
+                <select class="lang-select" id="langSelect" onchange="changeLanguage(this.value)">
+                    <option value="km">KH</option>
+                    <option value="en">EN</option>
+                    <option value="zh">中文</option>
+                </select>
+            </div>
+        </div>
+    </nav>
+
+    <div class="cover-container">
+        <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()">
+            <div class="cover-slide-item">
+                <div class="cover-image-box">
+                    <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                        <source src="videos/VID_20260905221119531.mp4" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+            <div class="cover-slide-item">
+                <div class="cover-image-box">
+                    <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                        <source src="videos/gemini_generated_video_1CCC7921.mp4" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+        </div>
+        <div class="cover-dots" id="coverDots">
+            <div class="cover-dot active"></div>
+            <div class="cover-dot"></div>
+        </div>
+        <div class="cover-info">
+            <div class="sub-title">Simple · Modern · Confident</div>
+            <div class="main-title" data-key="cover_title">BUILD YOUR DREAM STYLE</div>
+        </div>
+    </div>
+
+    <div class="menu-wrapper">
+        <div class="categories">
+            <button class="cat-btn active" onclick="selectMainCategory('men', this)" data-key="cat_men">បុរស</button>
+            <button class="cat-btn" onclick="selectMainCategory('women', this)" data-key="cat_women">នារី</button>
+        </div>
+
+        <div class="sub-categories active" id="sub-men">
+            <button class="sub-btn active" onclick="selectSubCategory('men', 'all', this)" data-key="sub_all">ទាំងអស់</button>
+            <button class="sub-btn" onclick="selectSubCategory('men', 'tops', this)" data-key="cat_tops">អាវ</button>
+            <button class="sub-btn" onclick="selectSubCategory('men', 'pants', this)" data-key="cat_pants">ខោ</button>
+            <button class="sub-btn" onclick="selectSubCategory('men', 'outerwear', this)" data-key="cat_outerwear">អាវក្រៅ</button>
+        </div>
+
+        <div class="sub-categories" id="sub-women">
+            <button class="sub-btn active" onclick="selectSubCategory('women', 'all', this)" data-key="sub_all">ទាំងអស់</button>
+            <button class="sub-btn" onclick="selectSubCategory('women', 'tops', this)" data-key="cat_tops">អាវ</button>
+            <button class="sub-btn" onclick="selectSubCategory('women', 'pants', this)" data-key="cat_pants">ខោ</button>
+            <button class="sub-btn" onclick="selectSubCategory('women', 'outerwear', this)" data-key="cat_outerwear">អាវក្រៅ</button>
+        </div>
+    </div>
+
+    <!-- Dynamic Container for Products -->
+    <div class="container" id="productContainer">
+        <!-- ទំនិញនឹងត្រូវទាញយកមកបង្ហាញទីនេះស្វ័យប្រវត្តិតាមរយៈ JavaScript API -->
+    </div>
+
+    <!-- Pagination Buttons Container -->
+    <div id="paginationContainer" style="display: flex; justify-content: center; align-items: center; gap: 6px; margin: 20px 0; flex-wrap: wrap;"></div>
+
+    <div class="cart-checkout-bar">
+        <div class="bar-content">
+            <div style="cursor: pointer;" onclick="toggleCartModal()">
+                <div class="total-label"><span data-key="total_label">សរុប</span> (<span id="items-count">0</span> <span data-key="items_unit">មុខ</span>)</div>
+                <div class="total-price">
+                    <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                    <span id="total-price">$0.00</span>
+                </div>
+            </div>
+            <div class="bar-buttons">
+                <button onclick="toggleCartModal()" class="btn-cart-view">
+                    <img src="images/IMG_5827.png" alt="Cart" style="width: 14px; height: 14px; object-fit: contain;">
+                    <span data-key="btn_view_cart">មើលកន្ត្រក</span>
+                </button>
+                <button onclick="prepareOrder()" class="btn-telegram">
+                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img">
+                    <span data-key="btn_order_now">Order Now</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="guideModal" onclick="handleModalClick(event, 'guideModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <img src="images/IMG_5832.png" alt="Guide" class="modal-title-img">
+                    <span data-key="guide_title">របៀបកុម្មង់ទំនិញ</span>
+                </div>
+                <button class="btn-close" onclick="closeModal('guideModal')">✕</button>
+            </div>
+            <div style="padding: 10px 0; display: flex; flex-direction: column; gap: 8px;">
+                <div class="guide-step" data-key="guide_step1">១. ជ្រើសរើសទំហំ (Size) និងចុចប៊ូតុង "ដាក់ចូលកន្ត្រក" លើទំនិញដែលអ្នកពេញចិត្ត។</div>
+                <div class="guide-step" data-key="guide_step2">២. ចុចលើរូបកន្ត្រក ឬប៊ូតុង "មើលកន្ត្រក" ដើម្បីត្រួតពិនិត្យទំនិញដែលបានជ្រើសរើស។</div>
+                <div class="guide-step" data-key="guide_step3">៣. ចុចប៊ូតុង "Order Now" រួចបំពេញ ឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងរបស់អ្នក។</div>
+                <div class="guide-step" data-key="guide_step4">៤. ចុចបញ្ជូនសារទៅកាន់ Telegram ហាងជាការស្រេច!</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="cartModal" onclick="handleModalClick(event, 'cartModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <img src="images/IMG_5827.png" alt="Cart" class="modal-title-img">
+                    <span data-key="cart_title">ទំនិញក្នុងកន្ត្រករបស់អ្នក</span>
+                </div>
+                <button class="btn-close" onclick="closeModal('cartModal')">✕</button>
+            </div>
+            
+            <div id="cart-list"><div class="empty-msg" data-key="empty_cart">មិនទាន់មានទំនិញក្នុងកន្ត្រកទេ</div></div>
+
+            <div class="summary-box" id="summary-box" style="display: none;">
+                <div class="summary-row"><span data-key="subtotal_label">តម្លៃទំនិញ</span><span id="subtotal-amount">$0.00</span></div>
+                <div class="summary-row">
+                    <span class="delivery-fee-label">
+                        <img src="images/IMG_5831.png" alt="Delivery Fee" class="delivery-img-icon">
+                        <span data-key="delivery_label">ថ្លៃដឹក (Delivery Fee)</span>
+                    </span>
+                    <span>$2.00</span>
+                </div>
+            </div>
+
+            <div class="modal-footer" id="modal-footer" style="display: none;">
+                <div class="modal-total-row">
+                    <span class="modal-total-label" data-key="total_label">តម្លៃសរុប</span>
+                    <div class="modal-total-amount">
+                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                        <span id="modal-total-price">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="checkoutModal" onclick="handleModalClick(event, 'checkoutModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <img src="images/IMG_5839.png" alt="Customer Info Icon" class="modal-title-img">
+                    <span data-key="checkout_title">ព័ត៌មានសម្រាប់ការកុម្មង់</span>
+                </div>
+                <button class="btn-close" onclick="closeModal('checkoutModal')">✕</button>
+            </div>
+            
+            <div class="checkout-form active">
+                <div class="form-group">
+                    <label class="form-label" data-key="label_name">ឈ្មោះរបស់អ្នក (Name)</label>
+                    <input type="text" id="custName" class="form-input" placeholder="បំពេញឈ្មោះ..." oninput="clearError(this); saveUserInfo();">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" data-key="label_phone">លេខទូរស័ព្ទ (Phone Number)</label>
+                    <input type="tel" id="custPhone" class="form-input" placeholder="បំពេញលេខទូរស័ព្ទ (ឧ. 012345678)..." oninput="clearError(this); saveUserInfo();">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" data-key="label_address">ទីតាំងទទួលទំនិញ (Delivery Location)</label>
+                    <input type="text" id="custAddress" class="form-input" placeholder="បំពេញអាសយដ្ឋាន (ឧ. ផ្ទះ..., ផ្លូវ...)" oninput="clearError(this); saveUserInfo();">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">ទីតាំងលើ Map (Optional)</label>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="text" id="custMapUrl" class="form-input" placeholder="ជ្រើសរើសទីតាំងលើ Map (បើមាន)..." readonly style="cursor: pointer;" onclick="openMapModal()">
+                        <button type="button" onclick="openMapModal()" style="background: var(--accent-light); color: var(--accent); border: 1px solid var(--border-color); padding: 0 10px; border-radius: 10px; font-weight:800; font-size:11px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:4px;">
+                            🗺️ Select Map
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; margin-top: 15px;">
+                <div class="modal-total-row">
+                    <span class="modal-total-label" data-key="total_label">តម្លៃសរុប</span>
+                    <div class="modal-total-amount">
+                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                        <span id="checkout-total-price">$0.00</span>
+                    </div>
+                </div>
+                <button onclick="openTelegram()" class="btn-modal-telegram">
+                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img">
+                    <span data-key="btn_order_now">Order Now</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal OpenStreetMap Picker -->
+    <div class="modal-overlay" id="mapPickerModal" style="z-index: 300;" onclick="handleModalClick(event, 'mapPickerModal')">
+        <div class="modal-content" style="height: 85vh; padding: 16px; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>📍 សុំជ្រើសរើសទីតាំងទទួលទំនិញ</span>
+                </div>
+                <button class="btn-close" onclick="closeModal('mapPickerModal')">✕</button>
+            </div>
+            
+            <div style="position: relative; flex-grow: 1; border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color);">
+                <div id="freeMap" style="width: 100%; height: 100%;"></div>
+                
+                <button type="button" onclick="locateUserGPS()" style="position: absolute; bottom: 20px; right: 15px; z-index: 1000; background: #ffffff; color: #0284c7; border: none; width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    📌
+                </button>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <button onclick="confirmFreeLocation()" class="btn-modal-telegram">
+                    បញ្ជាក់ទីតាំងនេះ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toastNotification" class="toast-notification">
+        <span>🛒</span>
+        <span id="toastMessage">បានដាក់ចូលកន្ត្រក!</span>
+    </div>
+
+    <script>
+        const TELEGRAM_USERNAME = "OneDayClothingAgent";
+        const deliveryFee = 2.00;
+        const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
+
+        let stockData = {};
+        let priceData = {};
+        let productsList = [];
+        let currentLang = 'km';
+        let cart = {};
+        let currentGender = 'men';
+        let currentType = 'all';
+
+        // Pagination variables
+        let currentPage = 1;
+        const productsPerPage = 6;
+
+        let freeMapObj = null;
+        let freeMarker = null;
+        let currentPos = { lat: 11.5564, lng: 104.9282 };
+
+        const cambodiaBounds = L.latLngBounds(
+            [10.3807, 102.3323],
+            [14.6905, 107.6284]
+        );
+
+        const langFlags = {
+            km: 'images/IMG_5833.png',
+            en: 'images/IMG_5835.png',
+            zh: 'images/IMG_5834.png'
+        };
+
+        const translations = {
+            km: {
+                cover_title: "BUILD YOUR DREAM STYLE", cat_men: "បុរស", cat_women: "នារី", cat_tops: "អាវ", cat_pants: "ខោ", cat_outerwear: "អាវក្រៅ", sub_all: "ទាំងអស់",
+                select_size: "SIZE", add_to_cart: "ដាក់ចូលកន្ត្រក", total_label: "តម្លៃសរុប", subtotal_label: "តម្លៃទំនិញ", delivery_label: "ថ្លៃដឹក (Delivery Fee)",
+                items_unit: "មុខ", btn_order_now: "Order Now", btn_view_cart: "មើលកន្ត្រក", cart_title: "ទំនិញក្នុងកន្ត្រករបស់អ្នក", empty_cart: "មិនទាន់មានទំនិញក្នុងកន្ត្រកទេ",
+                checkout_title: "ព័ត៌មានសម្រាប់ការកុម្មង់",
+                guide_btn_text: "របៀបកុម្មង់", guide_title: "របៀបកុម្មង់ទំនិញ",
+                guide_step1: "១. ជ្រើសរើសទំហំ (Size) និងចុចប៊ូតុង \"ដាក់ចូលកន្ត្រក\" លើទំនិញដែលអ្នកពេញចិត្ត។",
+                guide_step2: "២. ចុចលើរូបកន្ត្រក ឬប៊ូតុង \"មើលកន្ត្រក\" ដើម្បីត្រួតពិនិត្យទំនិញដែលបានជ្រើសរើស។",
+                guide_step3: "៣. ចុចប៊ូតុង \"Order Now\" រួចបំពេញ ឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងរបស់អ្នក។",
+                guide_step4: "៤. ចុចបញ្ជូនសារទៅកាន់ Telegram ហាងជាការស្រេច!",
+                label_name: "ឈ្មោះរបស់អ្នក (Name)", label_phone: "លេខទូរស័ព្ទ (Phone Number)", label_address: "ទីតាំងទទួលទំនិញ (Delivery Location)",
+                alert_fill: "សូមបំពេញឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងឱ្យបានត្រឹមត្រូវ!",
+                alert_phone_invalid: "សូមបញ្ចូលលេខទូរស័ព្ទឱ្យបានត្រឹមត្រូវ (យ៉ាងតិច 8ខ្ទង់)!",
+                toast_added: "បានដាក់ចូលកន្ត្រកជោគជ័យ!",
+                stock_remaining: "ស្តុកនៅសល់: ",
+                in_stock: " (មានក្នុងស្តុក)",
+                out_of_stock: "អស់ស្តុក (Out of stock)"
+            },
+            en: {
+                cover_title: "BUILD YOUR DREAM STYLE", cat_men: "Men", cat_women: "Women", cat_tops: "Tops", cat_pants: "Pants", cat_outerwear: "Outerwear", sub_all: "All",
+                select_size: "SIZE", add_to_cart: "Add to Cart", total_label: "Total Amount", subtotal_label: "Subtotal", delivery_label: "Delivery Fee",
+                items_unit: "items", btn_order_now: "Order Now", btn_view_cart: "View Cart", cart_title: "Your Shopping Cart", empty_cart: "Your cart is currently empty",
+                checkout_title: "Checkout Information",
+                guide_btn_text: "How to Order", guide_title: "How to Order",
+                guide_step1: "1. Select your size and click \"Add to Cart\" on your favorite items.",
+                guide_step2: "2. Click the cart icon or \"View Cart\" button to review your items.",
+                guide_step3: "3. Click \"Order Now\" and fill in your name, phone number, and location.",
+                guide_step4: "4. Send the order message directly to our Telegram!",
+                label_name: "Your Name", label_phone: "Phone Number", label_address: "Delivery Location",
+                alert_fill: "Please fill in your name, phone number, and location!",
+                alert_phone_invalid: "Please enter a valid phone number (at least 8 digits)!",
+                toast_added: "Added to cart successfully!",
+                stock_remaining: "Stock remaining: ",
+                in_stock: " (In stock)",
+                out_of_stock: "Out of stock"
+            },
+            zh: {
+                cover_title: "打造您的理想风格", cat_men: "男装", cat_women: "女装", cat_tops: "上衣", cat_pants: "裤子", cat_outerwear: "外套", sub_all: "全部",
+                select_size: "尺码", add_to_cart: "加入购物车", total_label: "总金额", subtotal_label: "商品小计", delivery_label: "配送费 (Delivery Fee)",
+                items_unit: "件", btn_order_now: "Order Now", btn_view_cart: "查看购物车", cart_title: "您的购物车", empty_cart: "购物车是空的",
+                checkout_title: "结账信息",
+                guide_btn_text: "如何购买", guide_title: "如何购买",
+                guide_step1: "1. 选择尺码并点击您喜欢的商品上的“加入购物车”。",
+                guide_step2: "2. 点击购物车图标或“查看购物车”按钮检查所选商品。",
+                guide_step3: "3. 点击“Order Now”并填写您的姓名、电话和地址。",
+                guide_step4: "4. 将订单发送至我们的电报客服即可！",
+                label_name: "您的姓名", label_phone: "联系电话", label_address: "收货地址",
+                alert_fill: "请填写您的姓名、电话和收货地址！",
+                alert_phone_invalid: "请输入有效的电话号码（至少8位数）！",
+                toast_added: "已成功加入购物车！",
+                stock_remaining: "剩余库存: ",
+                in_stock: " (有货)",
+                out_of_stock: "缺货 (Out of stock)"
+            }
+        };
+
+        function setupVideoObserver() {
+            const videos = document.querySelectorAll('video');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target;
+                    if (entry.isIntersecting) {
+                        video.play().catch(() => {});
+                    } else {
+                        video.pause();
+                    }
+                });
+            }, { threshold: 0.25 });
+
+            videos.forEach(video => observer.observe(video));
+        }
+
+        function checkAutoTheme() {
+            let options = { timeZone: 'Asia/Phnom_Penh', hour: 'numeric', hour12: false };
+            let cambodiaHour = parseInt(new Intl.DateTimeFormat([], options).format(new Date()));
+            
+            if (cambodiaHour >= 19 || cambodiaHour < 6) {
+                setTheme(true);
+            } else {
+                setTheme(false);
+            }
+        }
+
+        function setTheme(isDark) {
+            let img = document.getElementById('themeImg');
+            if (isDark) {
+                document.body.classList.add('dark-mode');
+                if (img) img.src = 'images/IMG_5829.png'; 
+            } else {
+                document.body.classList.remove('dark-mode');
+                if (img) img.src = 'images/IMG_5830.png'; 
+            }
+        }
+
+        function toggleTheme() {
+            let isDark = document.body.classList.contains('dark-mode');
+            setTheme(!isDark);
+        }
+
+        function changeLanguage(lang) {
+            currentLang = lang;
+            
+            let flagImg = document.getElementById('langFlagImg');
+            if (flagImg && langFlags[lang]) {
+                flagImg.src = langFlags[lang];
+            }
+
+            const elements = document.querySelectorAll('[data-key]');
+            elements.forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (translations[lang] && translations[lang][key]) {
+                    el.innerText = translations[lang][key];
+                }
+            });
+
+            renderProducts();
+            renderCart();
+        }
+
+        function updateCoverDots() {
+            const slider = document.getElementById('coverSlider');
+            const dots = document.getElementById('coverDots').children;
+            const scrollLeft = slider.scrollLeft;
+            const slideWidth = slider.clientWidth;
+            const currentIndex = Math.round(scrollLeft / slideWidth);
+            
+            for (let i = 0; i < dots.length; i++) {
+                if (i === currentIndex) {
+                    dots[i].classList.add('active');
+                } else {
+                    dots[i].classList.remove('active');
+                }
+            }
+        }
+
+        function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+        function handleModalClick(event, modalId) { if (event.target.id === modalId) closeModal(modalId); }
+
+        function toggleCartModal() { 
+            let modal = document.getElementById('cartModal');
+            if (modal.classList.contains('active')) closeModal('cartModal');
+            else openModal('cartModal');
+        }
+
+        function toggleGuideModal() {
+            let modal = document.getElementById('guideModal');
+            if (modal.classList.contains('active')) closeModal('guideModal');
+            else openModal('guideModal');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            if (toast && toastMsg) {
+                toastMsg.innerText = msg;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            }
+        }
+
+        function prepareOrder() {
+            if (Object.keys(cart).length === 0) {
+                alert(translations[currentLang].empty_cart);
+                return;
+            }
+            closeModal('cartModal');
+            openModal('checkoutModal');
+            loadUserInfo();
+        }
+
+        function openMapModal() {
+            openModal('mapPickerModal');
+            setTimeout(() => {
+                if (!freeMapObj && window.L) {
+                    freeMapObj = L.map('freeMap', { 
+                        zoomControl: false,
+                        maxBounds: cambodiaBounds,
+                        maxBoundsViscosity: 1.0
+                    }).setView([currentPos.lat, currentPos.lng], 13);
+                    
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3jby_1_5ff4e5e8b17be757cdfcc3c7', {
+                        maxZoom: 19, minZoom: 7, subdomains: 'abcd',
+                        attribution: '&copy; CARTO'
+                    }).addTo(freeMapObj);
+
+                    L.control.zoom({ position: 'topleft' }).addTo(freeMapObj);
+                    freeMarker = L.marker([currentPos.lat, currentPos.lng], { draggable: true }).addTo(freeMapObj);
+
+                    freeMapObj.on('click', function(e) {
+                        if (cambodiaBounds.contains(e.latlng)) {
+                            currentPos = { lat: e.latlng.lat, lng: e.latlng.lng };
+                            freeMarker.setLatLng(e.latlng);
+                        }
+                    });
+
+                    freeMarker.on('dragend', function() {
+                        let position = freeMarker.getLatLng();
+                        if (cambodiaBounds.contains(position)) {
+                            currentPos = { lat: position.lat, lng: position.lng };
+                        } else {
+                            freeMarker.setLatLng([currentPos.lat, currentPos.lng]);
+                        }
+                    });
+
+                    locateUserGPS();
+                } else if (freeMapObj) {
+                    freeMapObj.invalidateSize();
+                }
+            }, 300);
+        }
+
+        function locateUserGPS() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    let lat = position.coords.latitude;
+                    let lng = position.coords.longitude;
+                    let targetLatLng = L.latLng(lat, lng);
+                    
+                    if (cambodiaBounds.contains(targetLatLng)) {
+                        currentPos = { lat, lng };
+                        if (freeMapObj && freeMarker) {
+                            freeMapObj.setView([lat, lng], 15);
+                            freeMarker.setLatLng([lat, lng]);
+                        }
+                    } else {
+                        alert("ទីតាំងបច្ចុប្បន្នរបស់អ្នកនៅក្រៅប្រទេសកម្ពុជា!");
+                    }
+                }, () => {}, { enableHighAccuracy: true });
+            }
+        }
+
+        function confirmFreeLocation() {
+            let coordsText = `${currentPos.lat.toFixed(6)}, ${currentPos.lng.toFixed(6)}`;
+            document.getElementById('custMapUrl').value = coordsText;
+            closeModal('mapPickerModal');
+        }
+
+        // Fetch Dynamic Products & Stock from Railway Backend API
+        async function loadDynamicProducts() {
+            try {
+                let response = await fetch(`${RAILWAY_API_URL}/api/products`);
+                productsList = await response.json();
+                renderProducts();
+            } catch (error) {
+                console.error("Error loading dynamic products:", error);
+            }
+        }
+
+        // 🔄 មុខងារធ្វើបច្ចុប្បន្នភាពស្តុកស្វ័យប្រវត្តិក្នុង Background (រៀងរាល់ ៥ វិនាទី)
+        async function backgroundSyncStock() {
+            try {
+                let response = await fetch(`${RAILWAY_API_URL}/api/products`);
+                if (response.ok) {
+                    let freshProducts = await response.json();
+                    productsList = freshProducts;
+                    
+                    const sizeOrder = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+                    productsList.forEach(prod => {
+                        let ref = prod.ref;
+                        let sizes = prod.sizes || [];
+                        sizes.forEach(s => {
+                            let cleanRef = String(ref).trim().toUpperCase();
+                            let cleanSize = String(s.size).trim().toUpperCase();
+                            let key = `${cleanRef}_${cleanSize}`;
+                            stockData[key] = s.stock_qty;
+                            priceData[key] = parseFloat(prod.price) || 0;
+                        });
+                    });
+
+                    document.querySelectorAll('.card').forEach(card => {
+                        let cardId = card.id; 
+                        let refText = cardId.replace('prod-', '');
+                        let activeSizeBtn = card.querySelector('.size-btn.active');
+                        let selectedSize = activeSizeBtn ? activeSizeBtn.innerText : 'M';
+                        fetchLiveStock(cardId, refText, selectedSize);
+                    });
+                }
+            } catch (error) {
+                console.error("Background stock sync error:", error);
+            }
+        }
+
+        function renderProducts() {
+            let container = document.getElementById('productContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            stockData = {};
+            priceData = {};
+
+            const sizeOrder = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+
+            productsList.forEach(prod => {
+                let ref = prod.ref;
+                let sizes = prod.sizes || [];
+
+                sizes.sort((a, b) => {
+                    let rankA = sizeOrder[a.size.toUpperCase()] || 99;
+                    let rankB = sizeOrder[b.size.toUpperCase()] || 99;
+                    return rankA - rankB;
+                });
+
+                sizes.forEach(s => {
+                    let cleanRef = String(ref).trim().toUpperCase();
+                    let cleanSize = String(s.size).trim().toUpperCase();
+                    let key = `${cleanRef}_${cleanSize}`;
+                    stockData[key] = s.stock_qty;
+                    priceData[key] = parseFloat(prod.price) || 0;
+                });
+
+                let defaultSizeObj = sizes.find(s => s.size.toUpperCase() === 'M') || sizes[0];
+                let defaultSizeName = defaultSizeObj ? defaultSizeObj.size.toUpperCase() : 'M';
+
+                let sizeButtonsHtml = '';
+                sizes.forEach((s) => {
+                    let isActive = (s.size.toUpperCase() === defaultSizeName) ? 'active' : '';
+                    sizeButtonsHtml += `<button class="size-btn ${isActive}" onclick="selectSize(this, 'prod-${ref}', '${ref}')">${s.size}</button>`;
+                });
+
+                let defaultKey = `${String(ref).trim().toUpperCase()}_${defaultSizeName}`;
+                let defaultStock = stockData[defaultKey] !== undefined ? stockData[defaultKey] : 0;
+                let defaultStockText = defaultStock > 0 ? `${defaultStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
+                let defaultStockColor = defaultStock > 0 ? "var(--accent)" : "#ef4444";
+
+                let displayTitle = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
+                let displayDesc = currentLang === 'en' ? (prod.desc_en || prod.desc_km) : currentLang === 'zh' ? (prod.desc_zh || prod.desc_km) : (prod.desc_km || '');
+
+                let cardHtml = `
+                    <div class="card" id="prod-${ref}" data-gender="${prod.gender || 'men'}" data-type="${prod.type || 'tops'}">
+                        <span class="badge">Ref: ${ref}</span>
+                        <div class="img-box">
+                            <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                                <source src="${prod.video_url || ''}" type="video/mp4">
+                            </video>
+                        </div>
+                        <div>
+                            <div class="prod-title">${displayTitle}</div>
+                            <div class="prod-desc">${displayDesc}</div>
+                            <div class="price-box">
+                                <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                                <div class="price">$${parseFloat(prod.price).toFixed(2)}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="size-header"><div class="size-label">${translations[currentLang].select_size}</div></div>
+                            <div class="size-grid">
+                                ${sizeButtonsHtml}
+                            </div>
+                            <div class="stock-hint-box" id="stock-hint-prod-${ref}">
+                                <span id="stock-text-prod-${ref}">${translations[currentLang].stock_remaining}</span>
+                                <span style="color: ${defaultStockColor}; font-weight: 900;">${defaultStockText}</span>
+                            </div>
+                            <button class="btn-add" onclick="addToCart(this, ${prod.price}, 'prod-${ref}', '${ref}', event)">+ ${translations[currentLang].add_to_cart}</button>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+
+            setupVideoObserver();
+            filterProducts();
+        }
+
+        async function fetchLiveStock(cardId, refText, selectedSize) {
+            let stockBox = document.getElementById(`stock-hint-${cardId}`);
+            let textSpan = document.getElementById(`stock-text-${cardId}`);
+            let numSpan = stockBox ? stockBox.querySelector('span:last-child') : null;
+            let card = document.getElementById(cardId);
+            let priceDisplay = card ? card.querySelector('.price') : null;
+            
+            let cleanRef = String(refText).replace(/ref:?\s*/i, '').trim().toUpperCase();
+            let cleanSize = String(selectedSize).trim().toUpperCase();
+            let stockKey = `${cleanRef}_${cleanSize}`;
+            let currentStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
+            let currentPrice = priceData[stockKey] !== undefined ? priceData[stockKey] : 0;
+
+            if (priceDisplay && currentPrice > 0) {
+                priceDisplay.innerText = `$${currentPrice.toFixed(2)}`;
+            }
+
+            if (stockBox && textSpan && numSpan) {
+                textSpan.style.display = "inline";
+                textSpan.innerText = translations[currentLang].stock_remaining;
+                numSpan.innerText = currentStock > 0 ? `${currentStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
+                numSpan.style.color = currentStock > 0 ? "var(--accent)" : "#ef4444";
+            }
+        }
+
+        function selectSize(element, cardId, refText) {
+            let buttons = element.parentElement.getElementsByClassName('size-btn');
+            for (let btn of buttons) btn.classList.remove('active');
+            element.classList.add('active');
+            
+            let selectedSize = element.innerText;
+            fetchLiveStock(cardId, refText, selectedSize);
+        }
+
+        function selectMainCategory(gender, element) {
+            currentGender = gender;
+            currentType = 'all';
+            currentPage = 1;
+
+            document.querySelectorAll('.categories .cat-btn').forEach(btn => btn.classList.remove('active'));
+            if (element) element.classList.add('active');
+
+            document.getElementById('sub-men').classList.remove('active');
+            document.getElementById('sub-women').classList.remove('active');
+
+            if (gender === 'men') {
+                document.getElementById('sub-men').classList.add('active');
+                resetSubActive('sub-men');
+            } else if (gender === 'women') {
+                document.getElementById('sub-women').classList.add('active');
+                resetSubActive('sub-women');
+            }
+
+            filterProducts();
+        }
+
+        function selectSubCategory(gender, type, element) {
+            currentGender = gender;
+            currentType = type;
+            currentPage = 1;
+
+            let subContainer = element.parentElement;
+            for (let btn of subContainer.getElementsByClassName('sub-btn')) btn.classList.remove('active');
+            element.classList.add('active');
+
+            filterProducts();
+        }
+
+        function resetSubActive(subId) {
+            let buttons = document.getElementById(subId).getElementsByClassName('sub-btn');
+            for (let btn of buttons) btn.classList.remove('active');
+            buttons[0].classList.add('active');
+        }
+
+        function filterProducts() {
+            let allCards = document.querySelectorAll('.container .card');
+            let matchedCards = [];
+
+            allCards.forEach(card => {
+                let cardGender = card.getAttribute('data-gender');
+                let cardType = card.getAttribute('data-type');
+
+                if (cardGender === currentGender && (currentType === 'all' || cardType === currentType)) {
+                    matchedCards.push(card);
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            let totalPages = Math.ceil(matchedCards.length / productsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            let startIndex = (currentPage - 1) * productsPerPage;
+            let endIndex = startIndex + productsPerPage;
+
+            matchedCards.forEach((card, index) => {
+                if (index >= startIndex && index < endIndex) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            renderPaginationControls(totalPages);
+        }
+
+        function renderPaginationControls(totalPages) {
+            let paginationContainer = document.getElementById('paginationContainer');
+            if (!paginationContainer) return;
+
+            if (totalPages <= 1) {
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                let isActive = (i === currentPage) ? 'active' : '';
+                html += `<button class="page-btn ${isActive}" onclick="changePage(${i})" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: ${i === currentPage ? 'var(--accent)' : 'var(--card-bg)'}; color: ${i === currentPage ? '#fff' : 'var(--primary)'}; font-weight: 800; cursor: pointer; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">${i}</button>`;
+            }
+            paginationContainer.innerHTML = html;
+        }
+
+        function changePage(page) {
+            currentPage = page;
+            filterProducts();
+            window.scrollTo({ top: 350, behavior: 'smooth' });
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            checkAutoTheme();
+            setupVideoObserver();
+            await loadDynamicProducts();
+            loadUserInfo();
+
+            // 🚀 ចាប់ផ្តើម Auto-Sync ស្តុកស្វ័យប្រវត្តិរៀងរាល់ ៥ វិនាទីម្តង
+            setInterval(backgroundSyncStock, 5000);
+        });
+
+        function playFlyAnimation(event, cardId) {
+            let card = document.getElementById(cardId);
+            let imgBox = card ? card.querySelector('.img-box video, .img-box img') : null;
+            let cartBtn = document.querySelector('.btn-cart-view');
+            if (!imgBox || !cartBtn) return;
+
+            let isVideo = imgBox.tagName.toLowerCase() === 'video';
+            let flyer = document.createElement(isVideo ? 'video' : 'img');
+            flyer.src = imgBox.currentSrc || imgBox.src;
+            flyer.className = 'fly-item';
+            
+            let rect = imgBox.getBoundingClientRect();
+            flyer.style.top = rect.top + 'px';
+            flyer.style.left = rect.left + 'px';
+            document.body.appendChild(flyer);
+
+            let cartRect = cartBtn.getBoundingClientRect();
+            setTimeout(() => {
+                flyer.style.top = (cartRect.top + 5) + 'px';
+                flyer.style.left = (cartRect.left + 5) + 'px';
+                flyer.style.width = '20px';
+                flyer.style.height = '20px';
+                flyer.style.opacity = '0.5';
+            }, 50);
+
+            setTimeout(() => flyer.remove(), 850);
+        }
+
+        async function addToCart(buttonEl, defaultPrice, cardId, refText, event) {
+            let card = document.getElementById(cardId);
+            let titleEl = card ? card.querySelector('.prod-title') : null;
+            let titleKey = titleEl ? titleEl.innerText : refText;
+
+            let activeSizeBtn = card ? card.querySelector('.size-btn.active') : null;
+            let selectedSize = activeSizeBtn ? activeSizeBtn.innerText : 'M';
+            let cleanRef = String(refText).trim().toUpperCase();
+            let cleanSize = selectedSize.trim().toUpperCase();
+            let stockKey = `${cleanRef}_${cleanSize}`;
+
+            await fetchLiveStock(cardId, refText, selectedSize);
+
+            let activePrice = priceData[stockKey] && priceData[stockKey] > 0 ? priceData[stockKey] : defaultPrice;
+            let currentStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
+            let currentQtyInCart = cart[stockKey] ? cart[stockKey].qty : 0;
+
+            if (currentStock === 0 || (currentQtyInCart + 1) > currentStock) {
+                alert(`សូមអភ័យទោស! ទំនិញនេះ (Ref: ${refText} - Size ${selectedSize}) ទិញបានតែ ${currentStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${currentStock}។`);
+                return;
+            }
+
+            playFlyAnimation(event, cardId);
+
+            if (cart[stockKey]) {
+                cart[stockKey].qty += 1;
+                cart[stockKey].price = activePrice;
+            } else {
+                cart[stockKey] = { titleKey, price: activePrice, size: selectedSize, ref: refText, qty: 1 };
+            }
+
+            renderCart();
+            showToast(translations[currentLang].toast_added);
+        }
+
+        function changeQty(itemKey, delta) {
+            if (cart[itemKey]) {
+                let newQty = cart[itemKey].qty + delta;
+                let availableStock = stockData[itemKey] !== undefined ? stockData[itemKey] : 0;
+
+                if (delta > 0 && newQty > availableStock) {
+                    alert(`សូមអភ័យទោស! ទំនិញនេះទិញបានតែ ${availableStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${availableStock}។`);
+                    return;
+                }
+
+                cart[itemKey].qty = newQty;
+                if (cart[itemKey].qty <= 0) delete cart[itemKey];
+            }
+            renderCart();
+        }
+
+        function deleteCartItem(itemKey) {
+            if (cart[itemKey]) {
+                delete cart[itemKey];
+                renderCart();
+            }
+        }
+
+        function clearError(inputElement) { inputElement.classList.remove('error'); }
+
+        function saveUserInfo() {
+            localStorage.setItem('oneday_cust_name', document.getElementById('custName').value.trim());
+            localStorage.setItem('oneday_cust_phone', document.getElementById('custPhone').value.trim());
+            localStorage.setItem('oneday_cust_address', document.getElementById('custAddress').value.trim());
+        }
+
+        function loadUserInfo() {
+            let name = localStorage.getItem('oneday_cust_name');
+            let phone = localStorage.getItem('oneday_cust_phone');
+            let address = localStorage.getItem('oneday_cust_address');
+
+            if (name) document.getElementById('custName').value = name;
+            if (phone) document.getElementById('custPhone').value = phone;
+            if (address) document.getElementById('custAddress').value = address;
+        }
+
+        function renderCart() {
+            let cartList = document.getElementById('cart-list');
+            let modalFooter = document.getElementById('modal-footer');
+            let summaryBox = document.getElementById('summary-box');
+            let totalItems = 0;
+            let subtotalPrice = 0;
+            let itemsHtml = '';
+
+            const sizeOrder = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+            let sortedKeys = Object.keys(cart).sort((a, b) => {
+                let itemA = cart[a];
+                let itemB = cart[b];
+                let refA = parseInt(itemA.ref) || 0;
+                let refB = parseInt(itemB.ref) || 0;
+                if (refA !== refB) return refA - refB;
+                return (sizeOrder[itemA.size] || 99) - (sizeOrder[itemB.size] || 99);
+            });
+
+            for (let key of sortedKeys) {
+                let item = cart[key];
+                let itemTotal = item.price * item.qty;
+                totalItems += item.qty;
+                subtotalPrice += itemTotal;
+
+                itemsHtml += `
+                    <div class="cart-item">
+                        <div>
+                            <div class="item-info">[Ref: ${item.ref}] ${item.titleKey}</div>
+                            <div class="item-sub">Size: ${item.size} | $${item.price.toFixed(2)}</div>
+                        </div>
+                        <div class="qty-controls">
+                            <button class="btn-qty" onclick="changeQty('${key}', -1)">-</button>
+                            <span style="font-weight:800; font-size:12px;">${item.qty}</span>
+                            <button class="btn-qty" onclick="changeQty('${key}', 1)">+</button>
+                            <button class="btn-delete-item" onclick="deleteCartItem('${key}')" title="Delete">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (Object.keys(cart).length === 0) {
+                cartList.innerHTML = `<div class="empty-msg">${translations[currentLang].empty_cart}</div>`;
+                modalFooter.style.display = 'none';
+                summaryBox.style.display = 'none';
+            } else {
+                cartList.innerHTML = itemsHtml;
+                modalFooter.style.display = 'flex';
+                summaryBox.style.display = 'flex';
+            }
+
+            let grandTotal = subtotalPrice > 0 ? subtotalPrice + deliveryFee : 0;
+
+            let cartCountEl = document.getElementById('cart-count');
+            if (cartCountEl) cartCountEl.innerText = totalItems;
+            
+            document.getElementById('items-count').innerText = totalItems;
+            document.getElementById('subtotal-amount').innerText = '$' + subtotalPrice.toFixed(2);
+            document.getElementById('total-price').innerText = '$' + grandTotal.toFixed(2);
+            document.getElementById('modal-total-price').innerText = '$' + grandTotal.toFixed(2);
+            document.getElementById('checkout-total-price').innerText = '$' + grandTotal.toFixed(2);
+        }
+
+        async function openTelegram() {
+            if (Object.keys(cart).length === 0) {
+                alert(translations[currentLang].empty_cart);
+                return;
+            }
+
+            let nameInput = document.getElementById('custName');
+            let phoneInput = document.getElementById('custPhone');
+            let addressInput = document.getElementById('custAddress');
+            let mapUrlInput = document.getElementById('custMapUrl');
+
+            let name = nameInput.value.trim();
+            let phone = phoneInput.value.trim();
+            let address = addressInput.value.trim();
+            let mapUrl = mapUrlInput ? mapUrlInput.value.trim() : '';
+
+            let hasError = false;
+            if (!name) { nameInput.classList.add('error'); hasError = true; }
+            if (!phone) { phoneInput.classList.add('error'); hasError = true; }
+            if (!address) { addressInput.classList.add('error'); hasError = true; }
+
+            if (hasError) {
+                alert(translations[currentLang].alert_fill);
+                return;
+            }
+
+            let cleanPhone = phone.replace(/[^0-9]/g, '');
+            if (cleanPhone.length < 8) {
+                phoneInput.classList.add('error');
+                alert(translations[currentLang].alert_phone_invalid);
+                return;
+            }
+
+            saveUserInfo();
+
+            let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+            let userId = tgUser ? tgUser.id : "";
+            let username = tgUser ? tgUser.username : "";
+
+            let orderData = {
+                customer: { name, phone, address, mapUrl, userId, username },
+                items: cart
+            };
+
+            try {
+                let response = await fetch(`${RAILWAY_API_URL}/api/order`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderData)
+                });
+
+                let result = await response.json();
+                if (result.success) {
+                    let message = "🛍️ Oneday Clothing — New Order\n\n";
+                    message += "👤 ព័ត៌មានអតិថិជន\n";
+                    message += `• ឈ្មោះ: ${name}\n`;
+                    message += `• លេខទូរស័ព្ទ: ${phone}\n`;
+                    message += `• អាសយដ្ឋាន: ${address}\n`;
+                    if (mapUrl) {
+                        let cleanCoords = mapUrl.replace(/\s+/g, '');
+                        message += `• ទីតាំង Map: ${mapUrl}\n`;
+                        message += `• Link Google Maps: https://www.google.com/maps?q=${cleanCoords}\n`;
+                    }
+                    message += "\n📦 ទំនិញដែលបានកុម្មង់\n";
+
+                    let index = 1;
+                    let subtotalPrice = 0;
+
+                    const sizeOrder = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
+                    let sortedKeys = Object.keys(cart).sort((a, b) => {
+                        let itemA = cart[a];
+                        let itemB = cart[b];
+                        let refA = parseInt(itemA.ref) || 0;
+                        let refB = parseInt(itemB.ref) || 0;
+                        if (refA !== refB) return refA - refB;
+                        return (sizeOrder[itemA.size] || 99) - (sizeOrder[itemB.size] || 99);
+                    });
+
+                    for (let key of sortedKeys) {
+                        let item = cart[key];
+                        let itemTotal = item.price * item.qty;
+                        subtotalPrice += itemTotal;
+                        
+                        message += `${index}. [Ref: ${item.ref}] ${item.titleKey}\n`;
+                        message += `    Size: ${item.size} × ${item.qty} — $${itemTotal.toFixed(2)}\n`;
+                        index++;
+                    }
+
+                    let grandTotal = subtotalPrice + deliveryFee;
+
+                    message += `\n💰 សរុប\n`;
+                    message += `• តម្លៃទំនិញ: $${subtotalPrice.toFixed(2)}\n`;
+                    message += `• ថ្លៃដឹកជញ្ជូន: $${deliveryFee.toFixed(2)}\n`;
+                    message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
+
+                    window.location.href = `https://t.me/${TELEGRAM_USERNAME}?text=${encodeURIComponent(message)}`;
+                } else {
+                    alert(result.message || "មានបញ្ហាពេលកុម្មង់ទំនិញ!");
+                }
+            } catch (error) {
+                console.error("Order error:", error);
+                alert("មិនអាចភ្ជាប់ទៅកាន់ Server លើ Railway បានទេ!");
+            }
+        }
+    </script>
+</body>
+</html>
