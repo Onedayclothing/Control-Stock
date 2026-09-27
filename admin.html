@@ -67,6 +67,7 @@
                 let ref = prod.ref;
                 let sizesHtml = '';
                 
+                // បង្ហាញ Size តាមលំដាប់ S, M, L, XL, XXL ជានិច្ច
                 ['S', 'M', 'L', 'XL', 'XXL'].forEach(sz => {
                     let sizeData = prod.sizes.find(s => s.size.toUpperCase() === sz) || { stock_qty: 0 };
                     let qty = sizeData.stock_qty;
@@ -112,19 +113,14 @@
             newQty = parseInt(newQty);
             if (isNaN(newQty) || newQty < 0) return;
 
-            // 🔐 ទាញយក Telegram ID របស់ User ដែលកំពុងបើក Mini App ផ្ញើទៅជាមួយ
-            let telegram_id = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-
             let res = await fetch('/api/admin/update-stock', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ref, size, qty: newQty, telegram_id })
+                body: JSON.stringify({ ref, size, qty: newQty })
             });
             let result = await res.json();
-            
             if (!result.success) {
-                alert(result.error || "⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!");
-                loadStock(); // Reload ទិន្នន័យដើមវិញបើគ្មានសិទ្ធិ
+                alert("មិនអាចកែប្រែស្តុកបានទេ!");
             } else {
                 let resProd = await fetch('/api/products');
                 productsData = await resProd.json();
