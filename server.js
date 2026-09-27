@@ -48,16 +48,18 @@ async function isAdminUser(chatId, username) {
     }
 }
 
-// មុខងារពិនិត្យសិទ្ធិមុននឹងអនុញ្ញាតឱ្យប្រើ Command
-async function checkCommandAuth(ctx) {
-    const chatId = ctx.chat.id;
-    const username = ctx.from.username || '';
-    let authorized = await isAdminUser(chatId, username);
-    if (!authorized) {
-        ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់คำสั่งนี้ទេ! សូមវាយ /start ដើម្បីផ្ទៀងផ្ទាត់ Password។');
+// មុខងារពិនិត្យថាតើ User នេះជា Owner (ម្ចាស់ហាង) មែនឬអត់
+async function isOwnerUser(chatId, username) {
+    try {
+        let check = await pool.query(
+            "SELECT * FROM admins WHERE (chat_id = $1 OR LOWER(username) = LOWER($2)) AND is_owner = TRUE",
+            [chatId || 0, username || '']
+        );
+        return check.rows.length > 0;
+    } catch (err) {
+        console.error("Error checking owner:", err);
         return false;
     }
-    return true;
 }
 
 // មុខងារបកប្រែស្វ័យប្រវត្តិពី ខ្មែរ ទៅ EN និង ZH
@@ -79,7 +81,7 @@ if (!fs.existsSync(videoDir)) {
     fs.mkdirSync(videoDir, { recursive: true });
 }
 
-// បង្កើត Table ស្តុក ផលិតផល អដ្មេន និង ការកុម្មង់ ស្វ័យប្រវត្តិពេលចាប់ផ្តើម Server
+// បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
 async function initDB() {
     try {
         await pool.query(`
@@ -118,10 +120,20 @@ async function initDB() {
             CREATE TABLE IF NOT EXISTS admins (
                 id SERIAL PRIMARY KEY,
                 chat_id BIGINT UNIQUE,
-                username VARCHAR(255)
+                username VARCHAR(255),
+                is_owner BOOLEAN DEFAULT FALSE
             );
         `);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
+        await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE;`);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS banned_admins (
+                id SERIAL PRIMARY KEY,
+                chat_id BIGINT UNIQUE,
+                username VARCHAR(255)
+            );
+        `);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS orders (
@@ -205,7 +217,6 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
-// 🔒 API សម្រាប់ឆែកសិទ្ធិ Admin ពី Mini App
 app.post('/api/check-admin', async (req, res) => {
     let { telegramId, username } = req.body;
     try {
@@ -410,39 +421,190 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// ➕ បន្ថែម Admin តាម Username (ឧ. /add@username)
-bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
-    let targetUsername = ctx.match[1].trim();
+// 👑 คำสั่ง /checkadmin (សម្រាប់ Owner មើលបញ្ជី Admin និងจัดการ)
+bot.command('checkadmin', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាង) ទេដែលអាចប្រើប្រាស់คำสั่งนี้បាន!');
+    }
+
     try {
-        await pool.query(
-            "INSERT INTO admins (username) VALUES ($1) ON CONFLICT DO NOTHING",
-            [targetUsername]
-        );
-        ctx.reply(`✅ បានបន្ថែម @${targetUsername} ជា Admin ជោគជ័យ!`);
+        let ownerRes = await pool.query("SELECT username, chat_id FROM admins WHERE is_owner = TRUE");
+        let adminsRes = await pool.query("SELECT username, chat_id FROM admins WHERE is_owner = FALSE OR is_owner IS NULL");
+
+        let ownerText = ownerRes.rows.length > 0 ? (ownerRes.rows[0].username ? `@${ownerRes.rows[0].username}` : `ID: ${ownerRes.rows[0].chat_id}`) : 'មិនទាន់មាន';
+        
+        let msg = `👑 **Owner (ម្ចាស់ហាង):** ${ownerText}\n\n📋 **បញ្ជី Admin ទាំងអស់:**\nសូមចុចលើឈ្មោះ Admin ខាងក្រោមដើម្បីจัดการ (Transfer Owner ឬ Kick):`;
+
+        let inlineKeyboard = [];
+        adminsRes.rows.forEach(adm => {
+            let uName = adm.username ? `@${adm.username}` : `ID: ${adm.chat_id}`;
+            let rawUName = adm.username || adm.chat_id.toString();
+            inlineKeyboard.push([{ text: `👤 ${uName}`, callback_data: `manage_adm_${rawUName}` }]);
+        });
+
+        if (adminsRes.rows.length === 0) {
+            msg += `\n*(មិនទាន់មាន Admin ផ្សេងទៀតទេ)*`;
+        }
+
+        await ctx.reply(msg, {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: inlineKeyboard }
+        });
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
-// ❌ លុបសិទ្ធិ Admin តាម Username (ឧ. /un@username)
-bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
+// ⚙️ Callback: ពេល Owner ចុចលើឈ្មោះ Admin ណាមួយ
+bot.action(/^manage_adm_(.+)$/, async (ctx) => {
+    const target = ctx.match[1];
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
+    }
+
+    await ctx.answerCbQuery();
+    await ctx.editMessageText(`⚙️ គ្រប់គ្រង Admin: **@${target}**\nតើអ្នកចង់ធ្វើអ្វីជាមួយ Account នេះ?`, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: '👑 ផ្ទេរ Owner', callback_data: `transfer_own_${target}` },
+                    { text: '❌ Kick Admin', callback_data: `kick_adm_${target}` }
+                ]
+            ]
+        }
+    });
+});
+
+// 🔄 Callback: ផ្ទេរ Owner ទៅឱ្យ Admin នោះ
+bot.action(/^transfer_own_(.+)$/, async (ctx) => {
+    const target = ctx.match[1];
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
+    }
+
+    try {
+        // ដកសិទ្ធិ Owner ពី Owner ចាស់
+        await pool.query("UPDATE admins SET is_owner = FALSE WHERE chat_id = $1 OR LOWER(username) = LOWER($2)", [chatId, username]);
+        // ដាក់សិទ្ធិ Owner ឱ្យ Target ថ្មី
+        await pool.query("UPDATE admins SET is_owner = TRUE WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target, target]);
+
+        await ctx.answerCbQuery('✅ ផ្ទេរ Owner ជោគជ័យ!');
+        await ctx.editMessageText(`👑 បានផ្ទេរអំណាចជា Owner ទៅឱ្យ **@${target}** រួចរាល់ហើយ! ឥឡូវនេះអ្នកក្លាយជា Admin ធម្មតា។`, { parse_mode: 'Markdown' });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+        await ctx.editMessageText(`❌ បរាជ័យក្នុងការផ្ទេរ: ${err.message}`);
+    }
+});
+
+// ❌ Callback: Kick Admin ចោល និង Block មិនឱ្យប្រើ Password ចូលវិញ
+bot.action(/^kick_adm_(.+)$/, async (ctx) => {
+    const target = ctx.match[1];
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិ!', { show_alert: true });
+    }
+
+    try {
+        let adminRec = await pool.query("SELECT chat_id, username, is_owner FROM admins WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target]);
+        
+        if (adminRec.rows.length > 0) {
+            if (adminRec.rows[0].is_owner) {
+                return ctx.answerCbQuery('❌ មិនអាច Kick Owner បានទេ!', { show_alert: true });
+            }
+            let adm = adminRec.rows[0];
+            // ដាក់ចូលបញ្ជី Banned
+            await pool.query(
+                "INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+                [adm.chat_id, adm.username]
+            );
+            // លុបចេញពី admins
+            await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1) OR chat_id::text = $1", [target]);
+        } else {
+            await pool.query("INSERT INTO banned_admins (username) VALUES ($1) ON CONFLICT DO NOTHING", [target]);
+        }
+
+        await ctx.answerCbQuery('❌ Kick ជោគជ័យ!');
+        await ctx.editMessageText(`❌ បាន Kick និង Block **@${target}** រួចរាល់! ពួកគាត់មិនអាចប្រើ Password ចូលវិញបានទេ។ (ប្រសិនបើចង់ឱ្យប្រើវិញ ត្រូវប្រើคำสั่ง /add@username)`, { parse_mode: 'Markdown' });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+        await ctx.editMessageText(`❌ បរាជ័យក្នុងការ Kick: ${err.message}`);
+    }
+});
+
+// ➕ បន្ថែម Admin (មានតែ Owner ម្នាក់គត់ដែលប្រើได้)
+bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាងដើម) ទេដែលអាចប្រើប្រាស់คำสั่งបន្ថែម Admin បាន!');
+    }
+
     let targetUsername = ctx.match[1].trim();
     try {
+        // ដកចេញពី Banned List វិញ ដើម្បីឱ្យ Account នោះអាចដំណើរការឡើងវិញបាន
+        await pool.query("DELETE FROM banned_admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        
         await pool.query(
-            "DELETE FROM admins WHERE LOWER(username) = LOWER($1)",
+            "INSERT INTO admins (username, is_owner) VALUES ($1, FALSE) ON CONFLICT DO NOTHING",
             [targetUsername]
         );
-        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} រួចរាល់!`);
+        ctx.reply(`✅ បានបន្ថែម ឬ reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// ❌ លុបសិទ្ធិ Admin តាម Username (អាចប្រើ /un@username ក៏បាន ឬប្រើតាម /checkadmin ប៊ូតុងក៏បាន)
+bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+
+    if (!await isOwnerUser(chatId, username)) {
+        return ctx.reply('⛔️ មានតែ Owner (ម្ចាស់ហាងដើម) ទេដែលអាចប្រើប្រាស់คำสั่งដកសិទ្ធិ Admin បាន!');
+    }
+
+    let targetUsername = ctx.match[1].trim();
+    try {
+        let targetCheck = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        if (targetCheck.rows.length > 0 && targetCheck.rows[0].is_owner) {
+            return ctx.reply('❌ មិនអាចលុបសិទ្ធិរបស់ Owner (ម្ចាស់ហាង) បានទេ!');
+        }
+
+        if (targetCheck.rows.length > 0) {
+            let adm = targetCheck.rows[0];
+            await pool.query(
+                "INSERT INTO banned_admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+                [adm.chat_id, adm.username]
+            );
+        } else {
+            await pool.query("INSERT INTO banned_admins (username) VALUES ($1) ON CONFLICT DO NOTHING", [targetUsername]);
+        }
+
+        await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        ctx.reply(`❌ បានលុបសិទ្ធិ Admin របស់ @${targetUsername} និងទប់ស្កាត់មិនឱ្យប្រើ Password ចូលវិញរួចរាល់!`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
 });
 
 bot.command('add', async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
     const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -460,8 +622,10 @@ bot.command('add', async (ctx) => {
 });
 
 const cancelHandler = async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
     const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return;
+
     if (userStates[chatId]) {
         delete userStates[chatId];
         ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
@@ -474,15 +638,19 @@ bot.command('cancel', cancelHandler);
 bot.command('cancle', cancelHandler);
 
 bot.command('change', async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
-    let chatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
     ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
-    let chatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return;
+
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
     await handleEditRefSelection(ctx, chatId, cleanRef);
@@ -577,8 +745,10 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 });
 
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
-    let chatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -632,7 +802,10 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 });
 
 bot.command('cleanup', async (ctx) => {
-    if (!await checkCommandAuth(ctx)) return;
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
     try {
         if (!fs.existsSync(videoDir)) {
             return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
@@ -799,23 +972,33 @@ bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
     const msg = ctx.message;
     const text = msg.text || msg.caption || '';
+    const username = ctx.from.username || '';
 
-    // 🔐 ឆែកមើល Password ពេល User មិនទាន់មានសិទ្ធិ
     if (userStates[chatId] && userStates[chatId].action === 'WAITING_PASSWORD') {
+        let banCheck = await pool.query(
+            "SELECT * FROM banned_admins WHERE chat_id = $1 OR (username != '' AND LOWER(username) = LOWER($2))",
+            [chatId, username]
+        );
+        if (banCheck.rows.length > 0) {
+            delete userStates[chatId];
+            return ctx.reply('⛔️ អ្នកត្រូវបានគេដកសិទ្ធិ (Ban) ពីប្រព័ន្ធហើយ មិនអាចប្រើ Password ចូលវិញបានទេ!');
+        }
+
         if (text.trim() === 'onedaybyday') {
-            const username = ctx.from.username || '';
+            let checkAdmins = await pool.query("SELECT COUNT(*) FROM admins");
+            let isFirst = parseInt(checkAdmins.rows[0].count) === 0;
+
             await pool.query(
-                "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
-                [chatId, username]
+                "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, $3) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+                [chatId, username, isFirst]
             );
             delete userStates[chatId];
-            return ctx.reply('✅ Password ត្រឹមត្រូវ! អ្នកត្រូវបានអនុញ្ញាតឱ្យប្រើប្រាស់ប្រព័ន្ធរួចរាល់។ សូមផ្ញើ /start សារថ្មី។');
+            return ctx.reply(isFirst ? '👑 Password ត្រឹមត្រូវ! អ្នកត្រូវបានកំណត់ជា Owner (ម្ចាស់ហាង) ផ្លូវការរួចរាល់!' : '✅ Password ត្រឹមត្រូវ! អ្នកត្រូវបានអនុញ្ញាតឱ្យប្រើប្រាស់ប្រព័ន្ធ។ សូមផ្ញើ /start សារថ្មី។');
         } else {
             return ctx.reply('❌ Password មិនត្រឹមត្រូវទេ! សូមព្យាយាមបញ្ចូលម្តងទៀត៖');
         }
     }
 
-    let username = ctx.from.username || '';
     let authorized = await isAdminUser(chatId, username);
     if (!authorized) {
         return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ប្រព័ន្ធនេះទេ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
