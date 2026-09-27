@@ -29,7 +29,7 @@ const pool = new Pool({
 const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
 const bot = new Telegraf(BOT_TOKEN);
 
-// 🛠️ ចំណុចទី ១: Dynamic Host URL (អាចប្រើប្រាស់ Environment Variable ឬ Railway Domain ស្វ័យប្រវត្តិ)
+// 🛠️ ចំណុចទី ១: Dynamic Host URL
 const HOST_URL = process.env.RAILWAY_PUBLIC_DOMAIN 
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
     : 'https://control-stock-production-a855.up.railway.app';
@@ -108,8 +108,9 @@ async function initDB() {
                 username VARCHAR(255)
             );
         `);
+        // 🛠️ ធានាថាមាន Column username ជៀសវាង Error កើតឡើងពេល Table ចាស់ខ្វះ Column នេះ
+        await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
 
-        // Table សម្រាប់ស្គាល់ User ទាំងអស់ដែលធ្លាប់អន្តរកម្មជាមួយ Bot ដើម្បីងាយស្រួល Add Admin តាម Username
         await pool.query(`
             CREATE TABLE IF NOT EXISTS telegram_users (
                 chat_id BIGINT PRIMARY KEY,
@@ -252,10 +253,10 @@ app.post('/api/admin/add-product', async (req, res) => {
 // 🔒 API Order ដែលបានកែសម្រួលការពារ Race Condition ជាមួយ Transaction និង FOR UPDATE
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
-    const client = await pool.connect(); // បើក Connection ដាច់ដោយឡែកសម្រាប់ Transaction
+    const client = await pool.connect();
 
     try {
-        await client.query('BEGIN'); // 🚀 ចាប់ផ្តើម Transaction
+        await client.query('BEGIN');
 
         let totalAmount = 0;
         let itemsSummary = [];
@@ -266,7 +267,6 @@ app.post('/api/order', async (req, res) => {
             let cleanSize = item.size.trim().toUpperCase();
             let qty = parseInt(item.qty) || 1;
             
-            // 🔒 ប្រើ FOR UPDATE ដើម្បី Lock ជួរទំនិញនោះ មិនឱ្យអតិថិជនផ្សេងកុម្មង់ជាន់គ្នាបានក្នុងពេលតែមួយ
             let check = await client.query(
                 "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
                 [cleanRef, cleanSize]
@@ -275,7 +275,7 @@ app.post('/api/order', async (req, res) => {
             if (check.rows.length > 0) {
                 let currentStock = check.rows[0].stock_qty;
                 if (currentStock < qty) {
-                    await client.query('ROLLBACK'); // បោះបង់ចោលប្រតិបត្តិការភ្លាម
+                    await client.query('ROLLBACK');
                     client.release();
                     return res.json({ 
                         success: false, 
@@ -299,14 +299,12 @@ app.post('/api/order', async (req, res) => {
             }
         }
 
-        // បង្កើត Order
         let orderRes = await client.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
         );
         let orderId = orderRes.rows[0].id;
 
-        // កាត់ស្តុកភ្លាមៗក្នុង Transaction តែមួយ
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -319,10 +317,9 @@ app.post('/api/order', async (req, res) => {
             );
         }
 
-        await client.query('COMMIT'); // ✅ រក្សាទុកទិន្នន័យជាផ្លូវការពេលគ្រប់យ៉ាងរលូន
+        await client.query('COMMIT');
         client.release();
 
-        // ផ្ញើសារជូនដំណឹងទៅកាន់ Admin តាម Telegram Bot
         let adminsRes = await pool.query("SELECT chat_id FROM admins");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
@@ -374,7 +371,7 @@ app.post('/api/order', async (req, res) => {
         res.json({ success: true, message: "ការកុម្មង់បានជោគជ័យ និងកាត់ស្តុកស្វ័យប្រវត្តិរួចរាល់!" });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // បើមានបញ្ហាអ្វីកើតឡើង គឺមិនអនុញ្ញាតឱ្យកាត់ស្តុកខុសឡើយ
+        await client.query('ROLLBACK');
         client.release();
         res.status(500).json({ success: false, error: err.message });
     }
@@ -387,7 +384,6 @@ bot.start(async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.chat.username || '';
 
-    // រក្សាទុក User ទុកក្នុង Database ស្វ័យប្រវត្តិ
     try {
         await pool.query(
             "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
@@ -821,7 +817,6 @@ bot.on('message', async (ctx) => {
     const msg = ctx.message;
     const text = msg.text || msg.caption || '';
 
-    // រក្សាទុក User គ្រប់រូបចូល telegram_users ស្វ័យប្រវត្តិដើម្បីស្គាល់ username
     try {
         await pool.query(
             "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
@@ -831,7 +826,6 @@ bot.on('message', async (ctx) => {
         console.error("Error saving telegram user:", err);
     }
 
-    // 🔐 ពិនិត្យការបំពេញ PIN Code ប្រសិនបើ User កំពុងរង់ចាំផ្ទៀងផ្ទាត់
     if (userStates[chatId] && userStates[chatId].action === 'WAITING_PIN') {
         if (text.trim() === 'onedaybyday') {
             await pool.query(
@@ -847,7 +841,6 @@ bot.on('message', async (ctx) => {
 
     if (!userStates[chatId]) return;
 
-    // ប្រសិនបើមិនទាន់ជា Admin ទេ មិនអនុញ្ញាតឱ្យបំពេញជំហាន Admin ឡើយ
     if (!(await isAdmin(chatId))) {
         delete userStates[chatId];
         return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ។ សូមវាយ /start ដើម្បីផ្ទៀងផ្ទាត់ PIN Code ជាមុនសិន។');
