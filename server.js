@@ -1317,8 +1317,15 @@ bot.on('message', async (ctx) => {
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
-            state.data.price = 0;
             state.data.cost_price = 0;
+            state.step = 'PRICE';
+            return ctx.reply('💵 សូមសរសេរបញ្ចូលតម្លៃលក់ (ឧទាហរណ៍: 15.00):');
+        case 'PRICE':
+            let parsedPrice = parseFloat(text.trim());
+            if (isNaN(parsedPrice) || parsedPrice <= 0) {
+                return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃលក់ជាតួលេខឱ្យបានត្រឹមត្រូវ (ឧ. 15 ឬ 15.50)!');
+            }
+            state.data.price = parsedPrice;
             state.step = 'DESC';
             return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
