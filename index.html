@@ -57,6 +57,34 @@
 
         body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 120px; transition: background-color 0.3s, color 0.3s; }
 
+        img { max-width: 100%; }
+
+        /* 🛡️ Strict Icon Sizing Fix - ការពាររូប Icon រីកធំពាសពេញអេក្រង់ */
+        nav img, 
+        .modal-title img, 
+        .btn-cart-view img, 
+        .btn-telegram img, 
+        .btn-modal-telegram img,
+        .guide-top-btn img,
+        .summary-row img,
+        .form-label img,
+        .total-price img,
+        .modal-total-amount img,
+        .price-icon,
+        .delivery-img-icon,
+        .btn-order-img,
+        .nav-icon-img,
+        .modal-title-img,
+        .dynamic-cart-icon {
+            max-width: 20px !important;
+            max-height: 20px !important;
+            width: 20px !important;
+            height: 20px !important;
+            object-fit: contain !important;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
         input, select, textarea {
             font-size: 16px !important;
             -webkit-user-select: text;
@@ -91,10 +119,9 @@
             gap: 6px;
         }
         .logo span { color: var(--primary); }
-        .logo-img { height: 26px; object-fit: contain; display: none; }
+        .logo-img { height: 26px !important; width: auto !important; max-width: 120px !important; object-fit: contain; display: none; }
 
         .nav-right { display: flex; align-items: center; gap: 5px; }
-        .nav-icon-img { width: 13px; height: 13px; object-fit: contain; display: inline-block; vertical-align: middle; }
 
         .guide-top-btn { 
             background: var(--accent-light); 
@@ -129,10 +156,8 @@
             padding: 0;
         }
 
-        .theme-toggle-btn img { width: 14px; height: 14px; object-fit: contain; }
-
         .lang-select-wrapper { position: relative; display: flex; align-items: center; }
-        .lang-flag-img { position: absolute; left: 7px; width: 15px; height: 11px; pointer-events: none; z-index: 2; object-fit: cover; border-radius: 2px; box-shadow: 0 0 1px rgba(0,0,0,0.3); }
+        .lang-flag-img { position: absolute; left: 7px; width: 15px !important; height: 11px !important; pointer-events: none; z-index: 2; object-fit: cover !important; border-radius: 2px; box-shadow: 0 0 1px rgba(0,0,0,0.3); }
 
         .lang-select { 
             background: var(--accent-light); 
@@ -161,7 +186,7 @@
         
         .cover-image-box { width: 100%; max-height: 220px; background-color: #0f172a; overflow: hidden; position: relative; }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
-        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
+        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
 
         .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; background: var(--card-bg); }
         .cover-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
@@ -195,14 +220,13 @@
         
         .img-box { background: var(--input-bg); aspect-ratio: 9/16; border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border-color); position: relative; }
         .img-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
-        .img-box img, .img-box video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
+        .img-box img, .img-box video { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
         
         .badge { position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.9); color: white; font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; z-index: 10; }
         .prod-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; min-height: 30px; line-height: 1.4; color: var(--primary); }
         .prod-desc { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; min-height: 26px; line-height: 1.4; }
         
         .price-box { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
-        .price-icon { width: 15px; height: 15px; object-fit: contain; }
         .price { font-size: 15px; font-weight: 900; color: var(--accent); }
 
         .size-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
@@ -226,14 +250,11 @@
         .btn-cart-view { background: var(--accent-light); color: var(--primary); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .btn-telegram { background: var(--accent); color: white; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); display: flex; align-items: center; gap: 6px; }
 
-        .btn-order-img { width: 16px; height: 16px; object-fit: contain; }
-
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); z-index: 200; display: none; justify-content: flex-end; flex-direction: column; backdrop-filter: blur(4px); pointer-events: none; opacity: 0; transition: opacity 0.2s ease; }
         .modal-overlay.active { display: flex; pointer-events: auto; opacity: 1; }
         .modal-content { background: var(--modal-bg); color: var(--primary); border-radius: 24px 24px 0 0; padding: 20px; max-height: 85vh; overflow-y: auto; max-width: 480px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); border-top: 1px solid var(--border-color); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 14px; }
         .modal-title { font-size: 16px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 6px; }
-        .modal-title-img { width: 20px; height: 20px; object-fit: contain; }
         .btn-close { background: var(--accent-light); border: none; font-size: 14px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: var(--text-muted); }
 
         #cart-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; max-height: 260px; }
@@ -249,7 +270,6 @@
         .summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); font-weight: 700; }
 
         .delivery-fee-label { display: flex; align-items: center; gap: 6px; }
-        .delivery-img-icon { height: 18px; object-fit: contain; }
 
         .checkout-form { border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
         .form-group { display: flex; flex-direction: column; gap: 4px; width: 100%; }
@@ -399,7 +419,7 @@
             </div>
             <div class="bar-buttons">
                 <button onclick="toggleCartModal()" class="btn-cart-view">
-                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" style="width: 14px; height: 14px; object-fit: contain;">
+                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart">
                     <span data-key="btn_view_cart">មើលកន្ត្រក</span>
                 </button>
                 <button onclick="prepareOrder()" class="btn-telegram">
@@ -433,7 +453,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">
-                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" class="modal-title-img">
+                    <img class="dynamic-cart-icon modal-title-img" src="images/IMG_5827.png" alt="Cart">
                     <span data-key="cart_title">ទំនិញក្នុងកន្ត្រករបស់អ្នក</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('cartModal')">✕</button>
@@ -647,7 +667,6 @@
                     // 🎬 ១. អាប់ដេត Cover Video Animation
                     if (settings.cover_url) {
                         let coverVid = document.getElementById('heroCoverVideo');
-                        let coverBox = document.getElementById('coverBoxContainer');
                         if (coverVid) {
                             let source = coverVid.querySelector('source');
                             if (source) source.src = settings.cover_url;
