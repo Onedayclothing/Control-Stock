@@ -59,7 +59,7 @@
 
         img { max-width: 100%; }
 
-        /* 🛡️ Strict Icon Sizing Fix - ការពាររូប Icon រីកធំពាសពេញអេក្រង់ */
+        /* 🛡️ Strict Icon Sizing Fix */
         nav img, 
         .modal-title img, 
         .btn-cart-view img, 
@@ -344,7 +344,7 @@
             <div class="lang-select-wrapper">
                 <img id="langFlagImg" src="images/IMG_5833.png" alt="Language Flag" class="lang-flag-img">
                 <select class="lang-select" id="langSelect" onchange="changeLanguage(this.value)">
-                    <option value="km">ខ្មែរ</option>
+                    <option value="km">KH</option>
                     <option value="en">EN</option>
                     <option value="zh">中文</option>
                 </select>
@@ -581,7 +581,6 @@
         let currentGender = 'men';
         let currentType = 'all';
 
-        // Pagination variables
         let currentPage = 1;
         const productsPerPage = 6;
 
@@ -657,14 +656,12 @@
             }
         };
 
-        // 🌐 មុខងារទាញយក UI Settings (Cover, Logo, Icon) ពី Telegram Bot (/website)
         async function loadWebsiteSettings() {
             try {
                 let response = await fetch(`${RAILWAY_API_URL}/api/website-settings`);
                 if (response.ok) {
                     let settings = await response.json();
 
-                    // 🎬 ១. អាប់ដេត Cover Video Animation
                     if (settings.cover_url) {
                         let coverVid = document.getElementById('heroCoverVideo');
                         if (coverVid) {
@@ -676,7 +673,6 @@
                         }
                     }
 
-                    // 🖼️ ២. អាប់ដេត Logo ហាង
                     if (settings.logo_url) {
                         let logoImg = document.getElementById('site-logo');
                         if (logoImg) {
@@ -685,7 +681,6 @@
                         }
                     }
 
-                    // 🛒 ៣. អាប់ដេត Cart Icons លើ Web
                     if (settings.cart_icon_url) {
                         let cartIcons = document.querySelectorAll('.dynamic-cart-icon');
                         cartIcons.forEach(icon => {
@@ -880,7 +875,6 @@
             closeModal('mapPickerModal');
         }
 
-        // Fetch Dynamic Products & Stock from Railway Backend API
         async function loadDynamicProducts() {
             try {
                 let response = await fetch(`${RAILWAY_API_URL}/api/products`);
@@ -891,7 +885,6 @@
             }
         }
 
-        // 🔄 មុខងារធ្វើបច្ចុប្បន្នភាពស្តុកស្វ័យប្រវត្តិក្នុង Background (រៀងរាល់ ៥ វិនាទី)
         async function backgroundSyncStock() {
             try {
                 let response = await fetch(`${RAILWAY_API_URL}/api/products`);
@@ -899,7 +892,6 @@
                     let freshProducts = await response.json();
                     productsList = freshProducts;
                     
-                    const sizeOrder = { 'S': 1, 'M': 2, 'L': 3, 'XL': 4, 'XXL': 5 };
                     productsList.forEach(prod => {
                         let ref = prod.ref;
                         let sizes = prod.sizes || [];
@@ -912,13 +904,7 @@
                         });
                     });
 
-                    document.querySelectorAll('.card').forEach(card => {
-                        let cardId = card.id; 
-                        let refText = cardId.replace('prod-', '');
-                        let activeSizeBtn = card.querySelector('.size-btn.active');
-                        let selectedSize = activeSizeBtn ? activeSizeBtn.innerText : 'M';
-                        fetchLiveStock(cardId, refText, selectedSize);
-                    });
+                    updateAllCardStocks();
                 }
             } catch (error) {
                 console.error("Background stock sync error:", error);
@@ -963,7 +949,10 @@
                 });
 
                 let defaultKey = `${String(ref).trim().toUpperCase()}_${defaultSizeName}`;
-                let defaultStock = stockData[defaultKey] !== undefined ? stockData[defaultKey] : 0;
+                let totalStock = stockData[defaultKey] !== undefined ? stockData[defaultKey] : 0;
+                let inCartQty = cart[defaultKey] ? cart[defaultKey].qty : 0;
+                let defaultStock = Math.max(0, totalStock - inCartQty);
+
                 let defaultStockText = defaultStock > 0 ? `${defaultStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
                 let defaultStockColor = defaultStock > 0 ? "var(--accent)" : "#ef4444";
 
@@ -1006,6 +995,7 @@
             filterProducts();
         }
 
+        // ⚡ គណនាស្តុកដែលត្រូវបង្ហាញ = ស្តុកសរុប ដក ចំនួនក្នុងកន្ត្រក
         async function fetchLiveStock(cardId, refText, selectedSize) {
             let stockBox = document.getElementById(`stock-hint-${cardId}`);
             let textSpan = document.getElementById(`stock-text-${cardId}`);
@@ -1016,8 +1006,12 @@
             let cleanRef = String(refText).replace(/ref:?\s*/i, '').trim().toUpperCase();
             let cleanSize = String(selectedSize).trim().toUpperCase();
             let stockKey = `${cleanRef}_${cleanSize}`;
-            let currentStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
+
+            let totalStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
             let currentPrice = priceData[stockKey] !== undefined ? priceData[stockKey] : 0;
+            let inCartQty = cart[stockKey] ? cart[stockKey].qty : 0;
+
+            let availableStock = Math.max(0, totalStock - inCartQty);
 
             if (priceDisplay && currentPrice > 0) {
                 priceDisplay.innerText = `$${currentPrice.toFixed(2)}`;
@@ -1026,9 +1020,19 @@
             if (stockBox && textSpan && numSpan) {
                 textSpan.style.display = "inline";
                 textSpan.innerText = translations[currentLang].stock_remaining;
-                numSpan.innerText = currentStock > 0 ? `${currentStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
-                numSpan.style.color = currentStock > 0 ? "var(--accent)" : "#ef4444";
+                numSpan.innerText = availableStock > 0 ? `${availableStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
+                numSpan.style.color = availableStock > 0 ? "var(--accent)" : "#ef4444";
             }
+        }
+
+        function updateAllCardStocks() {
+            document.querySelectorAll('.card').forEach(card => {
+                let cardId = card.id; 
+                let refText = cardId.replace('prod-', '');
+                let activeSizeBtn = card.querySelector('.size-btn.active');
+                let selectedSize = activeSizeBtn ? activeSizeBtn.innerText : 'M';
+                fetchLiveStock(cardId, refText, selectedSize);
+            });
         }
 
         function selectSize(element, cardId, refText) {
@@ -1138,11 +1142,10 @@
         document.addEventListener('DOMContentLoaded', async function() {
             checkAutoTheme();
             setupVideoObserver();
-            await loadWebsiteSettings(); // 🌐 ទាញយក Cover & Icons ស្វ័យប្រវត្តិ
+            await loadWebsiteSettings();
             await loadDynamicProducts();
             loadUserInfo();
 
-            // 🚀 Auto-Sync ស្តុក និង Settings រៀងរាល់ ៥ វិនាទីម្តង
             setInterval(backgroundSyncStock, 5000);
             setInterval(loadWebsiteSettings, 10000);
         });
@@ -1186,18 +1189,17 @@
             let cleanSize = selectedSize.trim().toUpperCase();
             let stockKey = `${cleanRef}_${cleanSize}`;
 
-            await fetchLiveStock(cardId, refText, selectedSize);
-
-            let activePrice = priceData[stockKey] && priceData[stockKey] > 0 ? priceData[stockKey] : defaultPrice;
-            let currentStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
+            let totalStock = stockData[stockKey] !== undefined ? stockData[stockKey] : 0;
             let currentQtyInCart = cart[stockKey] ? cart[stockKey].qty : 0;
 
-            if (currentStock === 0 || (currentQtyInCart + 1) > currentStock) {
-                alert(`សូមអភ័យទោស! ទំនិញនេះ (Ref: ${refText} - Size ${selectedSize}) ទិញបានតែ ${currentStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${currentStock}។`);
+            if (totalStock === 0 || (currentQtyInCart + 1) > totalStock) {
+                alert(`សូមអភ័យទោស! ទំនិញនេះ (Ref: ${refText} - Size ${selectedSize}) ទិញបានតែ ${totalStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${totalStock}។`);
                 return;
             }
 
             playFlyAnimation(event, cardId);
+
+            let activePrice = priceData[stockKey] && priceData[stockKey] > 0 ? priceData[stockKey] : defaultPrice;
 
             if (cart[stockKey]) {
                 cart[stockKey].qty += 1;
@@ -1205,6 +1207,9 @@
             } else {
                 cart[stockKey] = { titleKey, price: activePrice, size: selectedSize, ref: refText, qty: 1 };
             }
+
+            // ⚡ អាប់ដេតលេខស្តុកលើ Card ភ្លាមៗ (២ ទៅ ១)
+            fetchLiveStock(cardId, refText, selectedSize);
 
             renderCart();
             showToast(translations[currentLang].toast_added);
@@ -1224,12 +1229,14 @@
                 if (cart[itemKey].qty <= 0) delete cart[itemKey];
             }
             renderCart();
+            updateAllCardStocks(); // ⚡ អាប់ដេតស្តុកលើ Card វិញភ្លាមៗ
         }
 
         function deleteCartItem(itemKey) {
             if (cart[itemKey]) {
                 delete cart[itemKey];
                 renderCart();
+                updateAllCardStocks(); // ⚡ អាប់ដេតស្តុកលើ Card វិញភ្លាមៗ
             }
         }
 
