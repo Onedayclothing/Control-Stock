@@ -1208,7 +1208,7 @@ bot.on('message', async (ctx) => {
 // 📌 កំណត់ បញ្ជីពាក្យបញ្ជា (Command Menu) ស្វ័យប្រវត្តិ
 bot.telegram.setMyCommands([
     { command: 'start', description: 'ចាប់ផ្តើមប្រព័ន្ធ / ផ្ទៀងផ្ទាត់ Password' },
-    { command: 'website', description: '🎬 កែប្រែ Cover, Video Animation & Icons Website' },
+    { command: 'website', description: ' កែប្រែ Cover, Video Animation & Icons Website' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
