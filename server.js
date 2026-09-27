@@ -126,7 +126,6 @@ async function initDB() {
         `);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_owner BOOLEAN DEFAULT FALSE;`);
-        await pool.query(`ALTER TABLE admins ALTER COLUMN chat_id DROP NOT NULL;`);
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS banned_admins (
@@ -413,6 +412,7 @@ bot.start(async (ctx) => {
     let authorized = await isAdminUser(chatId, username);
     if (authorized) {
         if (username) {
+            // អាប់ដេត chat_id ឱ្យត្រូវគ្នាពេលគាត់ចូល Bot វិញ
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
         return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
@@ -558,7 +558,7 @@ bot.action(/^kick_adm_(.+)$/, async (ctx) => {
     }
 });
 
-// ➕ បន្ថែម Admin (កែសម្រួលថ្មីដោយប្រើប្រាស់ Check Existence ផ្ទាល់ មិនបារម្ភរឿង ON CONFLICT Error ទៀតទេ)
+// ➕ បន្ថែម Admin (ប្រើប្រាស់ Temporary Negative chat_id ដើម្បីបំពេញ NOT NULL constraint យ៉ាងរលូន)
 bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -571,11 +571,17 @@ bot.hears(/^\/add\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     try {
         await pool.query("DELETE FROM banned_admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         
+        // បង្កើត ID អវិជ្ជមានបណ្តោះអាសន្ន ដើម្បីបំពេញ NOT NULL constraint របស់ Table ដើម
+        let tempChatId = -Math.floor(Date.now() + Math.random() * 1000);
+
         let existing = await pool.query("SELECT * FROM admins WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         if (existing.rows.length > 0) {
             await pool.query("UPDATE admins SET is_owner = FALSE WHERE LOWER(username) = LOWER($1)", [targetUsername]);
         } else {
-            await pool.query("INSERT INTO admins (username, is_owner) VALUES ($1, FALSE)", [targetUsername]);
+            await pool.query(
+                "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, FALSE)",
+                [tempChatId, targetUsername]
+            );
         }
 
         ctx.reply(`✅ បានបន្ថែម ឬ Reactivation @${targetUsername} ជា Admin ជោគជ័យ!`);
@@ -1072,7 +1078,7 @@ bot.on('message', async (ctx) => {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
+                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAI_HOST}/${text.trim()}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
