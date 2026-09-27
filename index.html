@@ -191,25 +191,26 @@
             background-size: 7px auto;
         }
 
-        .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 16px; position: relative; }
+        /* 📐 Cover Container set to Aspect Ratio 2.55:1 (Width 1260 / Height 495) */
+        .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 8px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
         .cover-slider::-webkit-scrollbar { display: none; }
         .cover-slide-item { flex: 0 0 100%; width: 100%; scroll-snap-align: start; }
         
-        .cover-image-box { width: 100%; max-height: 220px; background-color: #0f172a; overflow: hidden; position: relative; }
+        .cover-image-box { width: 100%; aspect-ratio: 1260 / 495; background-color: #0f172a; overflow: hidden; position: relative; }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
-        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
+        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: cover; opacity: 0.9; pointer-events: none; -webkit-touch-callout: none; }
 
-        .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; background: var(--card-bg); }
-        .cover-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
-        .cover-dot.active { width: 18px; border-radius: 4px; background: var(--accent); }
+        .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 4px 0; background: var(--card-bg); }
+        .cover-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
+        .cover-dot.active { width: 14px; border-radius: 4px; background: var(--accent); }
 
-        .cover-info { text-align: center; padding: 10px 14px 14px; background: var(--card-bg); }
-        .sub-title { font-size: 10px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
-        .main-title { font-size: 18px; font-weight: 900; text-transform: uppercase; color: var(--primary); }
+        .cover-info { text-align: center; padding: 4px 14px 8px; background: var(--card-bg); }
+        .sub-title { font-size: 9px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 2px; }
+        .main-title { font-size: 15px; font-weight: 900; text-transform: uppercase; color: var(--primary); }
 
         .menu-wrapper { 
-            padding: 8px 12px 12px; 
+            padding: 4px 12px 10px; 
             max-width: 480px; 
             margin: 0 auto; 
             position: sticky;
@@ -709,7 +710,7 @@
                             deliveryFeeText = `$${parsedNum.toFixed(2)}`;
                         } else {
                             deliveryFee = 0;
-                            deliveryFeeText = val; // ករណីដាក់អត្ថបទ "តម្លៃដឹកទូទាត់ជាមួយហាង"
+                            deliveryFeeText = val; 
                         }
                         renderCart();
                     }
