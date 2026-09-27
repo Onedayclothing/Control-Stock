@@ -86,8 +86,12 @@
             color: var(--accent); 
             line-height: 1;
             font-family: var(--nav-font);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         .logo span { color: var(--primary); }
+        .logo-img { height: 26px; object-fit: contain; display: none; }
 
         .nav-right { display: flex; align-items: center; gap: 5px; }
         .nav-icon-img { width: 13px; height: 13px; object-fit: contain; display: inline-block; vertical-align: middle; }
@@ -157,7 +161,7 @@
         
         .cover-image-box { width: 100%; max-height: 220px; background-color: #0f172a; overflow: hidden; position: relative; }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
-        .cover-image-box video { width: 100%; height: 100%; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
+        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; object-fit: contain; opacity: 0.85; pointer-events: none; -webkit-touch-callout: none; }
 
         .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0; background: var(--card-bg); }
         .cover-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
@@ -303,7 +307,10 @@
 <body>
 
     <nav>
-        <div class="logo">Oneday<span>.</span></div>
+        <div class="logo">
+            <img id="site-logo" class="logo-img" src="" alt="Site Logo">
+            <span id="logo-text">Oneday<span>.</span></span>
+        </div>
         <div class="nav-right">
             <button class="guide-top-btn" onclick="toggleGuideModal()">
                 <img src="images/IMG_5832.png" alt="Guide" class="nav-icon-img">
@@ -328,8 +335,8 @@
     <div class="cover-container">
         <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()">
             <div class="cover-slide-item">
-                <div class="cover-image-box">
-                    <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                <div class="cover-image-box" id="coverBoxContainer">
+                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
                         <source src="videos/VID_20260905221119531.mp4" type="video/mp4">
                     </video>
                 </div>
@@ -392,7 +399,7 @@
             </div>
             <div class="bar-buttons">
                 <button onclick="toggleCartModal()" class="btn-cart-view">
-                    <img src="images/IMG_5827.png" alt="Cart" style="width: 14px; height: 14px; object-fit: contain;">
+                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" style="width: 14px; height: 14px; object-fit: contain;">
                     <span data-key="btn_view_cart">មើលកន្ត្រក</span>
                 </button>
                 <button onclick="prepareOrder()" class="btn-telegram">
@@ -426,7 +433,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">
-                    <img src="images/IMG_5827.png" alt="Cart" class="modal-title-img">
+                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" class="modal-title-img">
                     <span data-key="cart_title">ទំនិញក្នុងកន្ត្រករបស់អ្នក</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('cartModal')">✕</button>
@@ -629,6 +636,48 @@
                 out_of_stock: "缺货 (Out of stock)"
             }
         };
+
+        // 🌐 មុខងារទាញយក UI Settings (Cover, Logo, Icon) ពី Telegram Bot (/website)
+        async function loadWebsiteSettings() {
+            try {
+                let response = await fetch(`${RAILWAY_API_URL}/api/website-settings`);
+                if (response.ok) {
+                    let settings = await response.json();
+
+                    // 🎬 ១. អាប់ដេត Cover Video Animation
+                    if (settings.cover_url) {
+                        let coverVid = document.getElementById('heroCoverVideo');
+                        let coverBox = document.getElementById('coverBoxContainer');
+                        if (coverVid) {
+                            let source = coverVid.querySelector('source');
+                            if (source) source.src = settings.cover_url;
+                            else coverVid.src = settings.cover_url;
+                            coverVid.load();
+                            coverVid.play().catch(() => {});
+                        }
+                    }
+
+                    // 🖼️ ២. អាប់ដេត Logo ហាង
+                    if (settings.logo_url) {
+                        let logoImg = document.getElementById('site-logo');
+                        if (logoImg) {
+                            logoImg.src = settings.logo_url;
+                            logoImg.style.display = 'inline-block';
+                        }
+                    }
+
+                    // 🛒 ៣. អាប់ដេត Cart Icons លើ Web
+                    if (settings.cart_icon_url) {
+                        let cartIcons = document.querySelectorAll('.dynamic-cart-icon');
+                        cartIcons.forEach(icon => {
+                            icon.src = settings.cart_icon_url;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading website settings:", error);
+            }
+        }
 
         function setupVideoObserver() {
             const videos = document.querySelectorAll('video');
@@ -1070,11 +1119,13 @@
         document.addEventListener('DOMContentLoaded', async function() {
             checkAutoTheme();
             setupVideoObserver();
+            await loadWebsiteSettings(); // 🌐 ទាញយក Cover & Icons ស្វ័យប្រវត្តិ
             await loadDynamicProducts();
             loadUserInfo();
 
-            // 🚀 ចាប់ផ្តើម Auto-Sync ស្តុកស្វ័យប្រវត្តិរៀងរាល់ ៥ វិនាទីម្តង
+            // 🚀 Auto-Sync ស្តុក និង Settings រៀងរាល់ ៥ វិនាទីម្តង
             setInterval(backgroundSyncStock, 5000);
+            setInterval(loadWebsiteSettings, 10000);
         });
 
         function playFlyAnimation(event, cardId) {
