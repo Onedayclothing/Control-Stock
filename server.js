@@ -71,7 +71,6 @@ async function initDB() {
             );
         `);
 
-        // 🛠️ បន្ថែម Column ទាំងនេះស្វ័យប្រវត្តិ ប្រសិនបើ Table ធ្លាប់មានរួចហើយ
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_en VARCHAR(255);`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_zh VARCHAR(255);`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_en TEXT;`);
@@ -226,9 +225,14 @@ app.post('/api/admin/add-product', async (req, res) => {
     }
 });
 
+// 🔒 API Order ដែលបានកែសម្រួលការពារ Race Condition ជាមួយ Transaction និង FOR UPDATE
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
+    const client = await pool.connect(); // បើក Connection ដាច់ដោយឡែកសម្រាប់ Transaction
+
     try {
+        await client.query('BEGIN'); // 🚀 ចាប់ផ្តើម Transaction
+
         let totalAmount = 0;
         let itemsSummary = [];
 
@@ -238,17 +242,20 @@ app.post('/api/order', async (req, res) => {
             let cleanSize = item.size.trim().toUpperCase();
             let qty = parseInt(item.qty) || 1;
             
-            let check = await pool.query(
-                "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2",
+            // 🔒 ប្រើ FOR UPDATE ដើម្បី Lock ជួរទំនិញនោះ មិនឱ្យអតិថិជនផ្សេងកុម្មង់ជាន់គ្នាបានក្នុងពេលតែមួយ
+            let check = await client.query(
+                "SELECT s.stock_qty, p.title_km, p.price FROM stock s JOIN products p ON s.ref = p.ref WHERE UPPER(s.ref) = $1 AND UPPER(s.size) = $2 FOR UPDATE",
                 [cleanRef, cleanSize]
             );
             
             if (check.rows.length > 0) {
                 let currentStock = check.rows[0].stock_qty;
                 if (currentStock < qty) {
+                    await client.query('ROLLBACK'); // បោះបង់ចោលប្រតិបត្តិការភ្លាម
+                    client.release();
                     return res.json({ 
                         success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ស្តុកមិនគ្រប់គ្រាន់ទេ!` 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ទើបតែត្រូវអតិថិជនផ្សេងកុម្មង់ដាច់ស្តុកមុននេះបន្តិចបន្តួច!` 
                     });
                 }
                 let itemTotal = parseFloat(check.rows[0].price) * qty;
@@ -262,28 +269,36 @@ app.post('/api/order', async (req, res) => {
                     total: itemTotal
                 });
             } else {
+                await client.query('ROLLBACK');
+                client.release();
                 return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
             }
         }
 
-        let orderRes = await pool.query(
+        // បង្កើត Order
+        let orderRes = await client.query(
             "INSERT INTO orders (customer, items, total, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id",
             [JSON.stringify(customer || {}), JSON.stringify(itemsSummary), totalAmount]
         );
         let orderId = orderRes.rows[0].id;
 
+        // កាត់ស្តុកភ្លាមៗក្នុង Transaction តែមួយ
         for (let key in items) {
             let item = items[key];
             let cleanRef = item.ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
             let cleanSize = item.size.trim().toUpperCase();
             let qty = parseInt(item.qty) || 1;
             
-            await pool.query(
+            await client.query(
                 "UPDATE stock SET stock_qty = stock_qty - $1 WHERE UPPER(ref) = $2 AND UPPER(size) = $3",
                 [qty, cleanRef, cleanSize]
             );
         }
 
+        await client.query('COMMIT'); // ✅ រក្សាទុកទិន្នន័យជាផ្លូវការពេលគ្រប់យ៉ាងរលូន
+        client.release();
+
+        // ផ្ញើសារជូនដំណឹងទៅកាន់ Admin តាម Telegram Bot
         let adminsRes = await pool.query("SELECT chat_id FROM admins");
         if (adminsRes.rows.length > 0) {
             let custName = customer?.name || customer?.fullName || 'អតិថិជនមិនបញ្ចេញឈ្មោះ';
@@ -333,7 +348,10 @@ app.post('/api/order', async (req, res) => {
         }
 
         res.json({ success: true, message: "ការកុម្មង់បានជោគជ័យ និងកាត់ស្តុកស្វ័យប្រវត្តិរួចរាល់!" });
+
     } catch (err) {
+        await client.query('ROLLBACK'); // បើមានបញ្ហាអ្វីកើតឡើង គឺមិនអនុញ្ញាតឱ្យកាត់ស្តុកខុសឡើយ
+        client.release();
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -360,7 +378,7 @@ bot.command('add', async (ctx) => {
         userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
         ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
     } catch (err) {
-        ctx.reply(`❌ មានបញ្ហាក្នុងการបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
+        ctx.reply(`❌ មានបញ្ហាក្នុងការបង្កើត Ref ស្វ័យប្រវត្តិ: ${err.message}`);
     }
 });
 
@@ -480,7 +498,6 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ ពាក្យបញ្ជា /deleteref ដែលលុបទាំងទិន្នន័យ និងហ្វាលវីដេអូក្នុង Volume ស្វ័យប្រវត្តិ
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
@@ -536,7 +553,6 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
-// 🧹 ពាក្យបញ្ជាសម្រាប់សម្អាតវីដេអូចាស់ៗដែលអត់មានប្រើប្រាស់ក្នុង Database
 bot.command('cleanup', async (ctx) => {
     let chatId = ctx.chat.id;
     await registerAdmin(chatId);
