@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Oneday Clothing | Premium Collection</title>
+
+    <!-- 🌐 Open Graph / Social Media Sharing Preview Meta Tags -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Oneday Clothing | Premium Collection">
+    <meta property="og:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
+    <meta property="og:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
+    <meta property="og:url" content="https://control-stock-production-a855.up.railway.app/">
+    <meta property="og:site_name" content="Oneday Clothing">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Oneday Clothing | Premium Collection">
+    <meta name="twitter:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
+    <meta name="twitter:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
     
     <link href="https://fonts.googleapis.com/css2?family=Content:wght@400;700&family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
     
@@ -328,21 +340,21 @@
 
     <nav>
         <div class="logo">
-            <img id="site-logo" class="logo-img" src="" alt="Site Logo">
+            <img id="site-logo" class="logo-img" src="" alt="Site Logo" loading="lazy">
             <span id="logo-text">Oneday<span>.</span></span>
         </div>
         <div class="nav-right">
             <button class="guide-top-btn" onclick="toggleGuideModal()">
-                <img src="images/IMG_5832.png" alt="Guide" class="nav-icon-img">
+                <img src="images/IMG_5832.png" alt="Guide" class="nav-icon-img" loading="lazy">
                 <span data-key="guide_btn_text">របៀបកុម្មង់</span>
             </button>
             
             <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleTheme()">
-                <img id="themeImg" src="images/IMG_5830.png" alt="Theme Toggle">
+                <img id="themeImg" src="images/IMG_5830.png" alt="Theme Toggle" loading="lazy">
             </button>
 
             <div class="lang-select-wrapper">
-                <img id="langFlagImg" src="images/IMG_5833.png" alt="Language Flag" class="lang-flag-img">
+                <img id="langFlagImg" src="images/IMG_5833.png" alt="Language Flag" class="lang-flag-img" loading="lazy">
                 <select class="lang-select" id="langSelect" onchange="changeLanguage(this.value)">
                     <option value="km">KH</option>
                     <option value="en">EN</option>
@@ -413,17 +425,17 @@
             <div style="cursor: pointer;" onclick="toggleCartModal()">
                 <div class="total-label"><span data-key="total_label">សរុប</span> (<span id="items-count">0</span> <span data-key="items_unit">មុខ</span>)</div>
                 <div class="total-price">
-                    <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                    <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon" loading="lazy">
                     <span id="total-price">$0.00</span>
                 </div>
             </div>
             <div class="bar-buttons">
                 <button onclick="toggleCartModal()" class="btn-cart-view">
-                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart">
+                    <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" loading="lazy">
                     <span data-key="btn_view_cart">មើលកន្ត្រក</span>
                 </button>
                 <button onclick="prepareOrder()" class="btn-telegram">
-                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img">
+                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img" loading="lazy">
                     <span data-key="btn_order_now">Order Now</span>
                 </button>
             </div>
@@ -435,7 +447,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">
-                    <img src="images/IMG_5832.png" alt="Guide" class="modal-title-img">
+                    <img src="images/IMG_5832.png" alt="Guide" class="modal-title-img" loading="lazy">
                     <span data-key="guide_title">របៀបកុម្មង់ទំនិញ</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('guideModal')">✕</button>
@@ -453,7 +465,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">
-                    <img class="dynamic-cart-icon modal-title-img" src="images/IMG_5827.png" alt="Cart">
+                    <img class="dynamic-cart-icon modal-title-img" src="images/IMG_5827.png" alt="Cart" loading="lazy">
                     <span data-key="cart_title">ទំនិញក្នុងកន្ត្រករបស់អ្នក</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('cartModal')">✕</button>
@@ -465,7 +477,7 @@
                 <div class="summary-row"><span data-key="subtotal_label">តម្លៃទំនិញ</span><span id="subtotal-amount">$0.00</span></div>
                 <div class="summary-row">
                     <span class="delivery-fee-label">
-                        <img src="images/IMG_5831.png" alt="Delivery Fee" class="delivery-img-icon">
+                        <img src="images/IMG_5831.png" alt="Delivery Fee" class="delivery-img-icon" loading="lazy">
                         <span data-key="delivery_label">ថ្លៃដឹក (Delivery Fee)</span>
                     </span>
                     <span>$2.00</span>
@@ -476,7 +488,7 @@
                 <div class="modal-total-row">
                     <span class="modal-total-label" data-key="total_label">តម្លៃសរុប</span>
                     <div class="modal-total-amount">
-                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon" loading="lazy">
                         <span id="modal-total-price">$0.00</span>
                     </div>
                 </div>
@@ -488,7 +500,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">
-                    <img src="images/IMG_5839.png" alt="Customer Info Icon" class="modal-title-img">
+                    <img src="images/IMG_5839.png" alt="Customer Info Icon" class="modal-title-img" loading="lazy">
                     <span data-key="checkout_title">ព័ត៌មានសម្រាប់ការកុម្មង់</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('checkoutModal')">✕</button>
@@ -524,12 +536,12 @@
                 <div class="modal-total-row">
                     <span class="modal-total-label" data-key="total_label">តម្លៃសរុប</span>
                     <div class="modal-total-amount">
-                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                        <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon" loading="lazy">
                         <span id="checkout-total-price">$0.00</span>
                     </div>
                 </div>
                 <button onclick="openTelegram()" class="btn-modal-telegram">
-                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img">
+                    <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img" loading="lazy">
                     <span data-key="btn_order_now">Order Now</span>
                 </button>
             </div>
@@ -971,7 +983,7 @@
                             <div class="prod-title">${displayTitle}</div>
                             <div class="prod-desc">${displayDesc}</div>
                             <div class="price-box">
-                                <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon">
+                                <img src="images/IMG_5837.png" alt="Price Icon" class="price-icon" loading="lazy">
                                 <div class="price">$${parseFloat(prod.price).toFixed(2)}</div>
                             </div>
                         </div>
@@ -995,7 +1007,6 @@
             filterProducts();
         }
 
-        // ⚡ គណនាស្តុកដែលត្រូវបង្ហាញ = ស្តុកសរុប ដក ចំនួនក្នុងកន្ត្រក
         async function fetchLiveStock(cardId, refText, selectedSize) {
             let stockBox = document.getElementById(`stock-hint-${cardId}`);
             let textSpan = document.getElementById(`stock-text-${cardId}`);
@@ -1208,7 +1219,6 @@
                 cart[stockKey] = { titleKey, price: activePrice, size: selectedSize, ref: refText, qty: 1 };
             }
 
-            // ⚡ អាប់ដេតលេខស្តុកលើ Card ភ្លាមៗ (២ ទៅ ១)
             fetchLiveStock(cardId, refText, selectedSize);
 
             renderCart();
@@ -1229,14 +1239,14 @@
                 if (cart[itemKey].qty <= 0) delete cart[itemKey];
             }
             renderCart();
-            updateAllCardStocks(); // ⚡ អាប់ដេតស្តុកលើ Card វិញភ្លាមៗ
+            updateAllCardStocks();
         }
 
         function deleteCartItem(itemKey) {
             if (cart[itemKey]) {
                 delete cart[itemKey];
                 renderCart();
-                updateAllCardStocks(); // ⚡ អាប់ដេតស្តុកលើ Card វិញភ្លាមៗ
+                updateAllCardStocks();
             }
         }
 
