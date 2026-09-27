@@ -39,6 +39,7 @@ let userStates = {};
 
 // មុខងារឆែកមើលថាតើ Chat ID នេះជា Admin ឬនៅ
 async function isAdmin(chatId) {
+    if (!chatId) return false;
     try {
         let res = await pool.query("SELECT * FROM admins WHERE chat_id = $1", [chatId]);
         return res.rows.length > 0;
@@ -108,7 +109,6 @@ async function initDB() {
                 username VARCHAR(255)
             );
         `);
-        // 🛠️ ធានាថាមាន Column username ជៀសវាង Error កើតឡើងពេល Table ចាស់ខ្វះ Column នេះ
         await pool.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS username VARCHAR(255);`);
 
         await pool.query(`
@@ -200,8 +200,15 @@ app.get('/api/stock', async (req, res) => {
     }
 });
 
+// 🔒 API Update Stock (ការពារដោយពិនិត្យសិទ្ធិ Admin)
 app.post('/api/admin/update-stock', async (req, res) => {
-    let { ref, size, qty } = req.body;
+    let { ref, size, qty, telegram_id } = req.body;
+    
+    // ពិនិត្យមើលថាតើ User នេះជា Admin ផ្លូវការឬអត់
+    if (!telegram_id || !(await isAdmin(telegram_id))) {
+        return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
+    }
+
     try {
         let cleanRef = ref.replace(/ref:?\s*/i, '').trim().toUpperCase();
         let cleanSize = size.trim().toUpperCase();
@@ -215,8 +222,15 @@ app.post('/api/admin/update-stock', async (req, res) => {
     }
 });
 
+// 🔒 API Add Product (ការពារដោយពិនិត្យសិទ្ធិ Admin)
 app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
+    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock, telegram_id } = req.body;
+
+    // ពិនិត្យមើលថាតើ User នេះជា Admin ផ្លូវការឬអត់
+    if (!telegram_id || !(await isAdmin(telegram_id))) {
+        return res.status(403).json({ success: false, error: "⛔️ Unauthorized: អ្នកមិនមានសិទ្ធិជា Admin ទេ!" });
+    }
+
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
@@ -379,7 +393,6 @@ app.post('/api/order', async (req, res) => {
 
 // --- TELEGRAM BOT COMMANDS & CALLBACKS ---
 
-// 🔐 ពាក្យបញ្ជា /start ពិនិត្យសិទ្ធិ Admin ឬសុំ PIN Code
 bot.start(async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.chat.username || '';
@@ -401,7 +414,6 @@ bot.start(async (ctx) => {
     ctx.reply('🔒 សូមបញ្ចូលលេខកូដសម្ងាត់ (PIN Code) ដើម្បីផ្ទៀងផ្ទាត់សិទ្ធិជា Admin:');
 });
 
-// ➕ ពាក្យបញ្ជាបន្ថែម Admin ថ្មី ឧ. /add username ឬ /add@username
 bot.hears(/^\/add\s*@?(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!(await isAdmin(chatId))) {
@@ -425,7 +437,6 @@ bot.hears(/^\/add\s*@?(.+)/i, async (ctx) => {
     }
 });
 
-// ❌ ពាក្យបញ្ជាដកហូតសិទ្ធិ Admin ឧ. /un username ឬ /un@username
 bot.hears(/^\/un\s*@?(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     if (!(await isAdmin(chatId))) {
@@ -966,7 +977,7 @@ bot.on('message', async (ctx) => {
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
-            } else if (text.trim()) {
+            } else if (text.id || text.trim()) {
                 let inputUrl = text.trim();
                 videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
             } else {
