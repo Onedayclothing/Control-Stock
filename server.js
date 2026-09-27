@@ -27,8 +27,8 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup
-const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
+// Telegram Bot Setup ជាមួយ Token ថ្មីដែលបានអាប់ដេត
+const BOT_TOKEN = '8631007810:AAFMqgzc4UZyJQdbnTyWbacNT2GMt3iV1q8';
 const bot = new Telegraf(BOT_TOKEN);
 
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
