@@ -239,6 +239,17 @@ app.get('/api/website-settings', async (req, res) => {
     }
 });
 
+// 🚚 API សម្រាប់ទាញយកថ្លៃដឹកជញ្ជូន
+app.get('/api/delivery-fee', async (req, res) => {
+    try {
+        let result = await pool.query("SELECT value FROM website_settings WHERE key = 'delivery_fee'");
+        let fee = result.rows.length > 0 ? result.rows.value : '2.00';
+        res.json({ delivery_fee: fee });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/products', async (req, res) => {
     try {
         const query = `
@@ -567,6 +578,19 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
     }
 });
 
+// 🚚 ពាក្យបញ្ជា /delivery (សម្រាប់កែប្រែថ្លៃដឹកតាម Telegram Bot)
+bot.command(['delivery', 'Delivery'], async (ctx) => {
+    const chatId = ctx.chat.id;
+    const username = ctx.from.username || '';
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_DELIVERY_FEE' };
+    
+    await ctx.reply('🚚 **កំណត់ថ្លៃដឹកជញ្ជូន (Delivery Fee)**\n\nសូមផ្ញើសារតម្លៃថ្មី (ឧ. `2.00`) ឬវាយពាក្យថា **តម្លៃដឹកទូទាត់ជាមួយហាង**៖', {
+        parse_mode: 'Markdown'
+    });
+});
+
 // 🌐 ពាក្យបញ្ជា /website
 bot.command(['website', 'Website'], async (ctx) => {
     const chatId = ctx.chat.id;
@@ -584,6 +608,7 @@ bot.command(['website', 'Website'], async (ctx) => {
                 [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
+                [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
                 [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
             ]
         }
@@ -603,9 +628,11 @@ bot.action('web_view_settings', async (ctx) => {
         let logoUrl = settings.logo_url || 'Default Logo Text (Oneday.)';
         let cartIconUrl = settings.cart_icon_url || 'Default Cart Icon';
         let mainTitle = settings.cover_title || 'BUILD YOUR DREAM STYLE';
+        let deliveryFee = settings.delivery_fee || '2.00';
 
         let msg = `👁️ **ការកំណត់បច្ចុប្បន្នលើ Website:**\n\n`;
         msg += `📢 **Banner Title:** ${mainTitle}\n`;
+        msg += `🚚 **Delivery Fee:** ${isNaN(deliveryFee) ? deliveryFee : '$' + parseFloat(deliveryFee).toFixed(2)}\n`;
         msg += `🎬 **Cover Video/Image:**\n${coverUrl}\n\n`;
         msg += `🖼️ **Shop Logo:**\n${logoUrl}\n\n`;
         msg += `🛒 **Cart Icon:**\n${cartIconUrl}`;
@@ -633,6 +660,7 @@ bot.action('web_back_menu', async (ctx) => {
                 [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
+                [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
                 [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'web_cancel' }]
             ]
         }
@@ -671,6 +699,13 @@ bot.action('web_edit_title', async (ctx) => {
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_TITLE' };
     await ctx.answerCbQuery();
     await ctx.editMessageText('📢 **សូមផ្ញើសារ/អក្សរ Banner ថ្មី** (ឧ. SPECIAL OFFER 20% OFF)៖');
+});
+
+bot.action('web_edit_delivery', async (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_DELIVERY_FEE' };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🚚 **កំណត់ថ្លៃដឹកជញ្ជូន (Delivery Fee)**\n\nសូមផ្ញើសារតម្លៃថ្មី (ឧ. `2.00`) ឬវាយពាក្យថា **តម្លៃដឹកទូទាត់ជាមួយហាង**៖', { parse_mode: 'Markdown' });
 });
 
 bot.action('web_cancel', async (ctx) => {
@@ -1198,7 +1233,7 @@ bot.on('message', async (ctx) => {
 
     await ctx.sendChatAction('typing');
 
-    // 🎬 ដំណើរការកំណត់ Website (/website)
+    // 🎬 ដំណើរការកំណត់ Website (/website និង /delivery)
     if (state.action === 'WEBSITE') {
         if (state.step === 'WAITING_TITLE') {
             if (!text.trim()) return ctx.reply('⚠️ សូមផ្ញើសារ/អក្សរឱ្យបានត្រឹមត្រូវ!');
@@ -1208,6 +1243,18 @@ bot.on('message', async (ctx) => {
             );
             delete userStates[chatId];
             return ctx.reply(`✅ **ជោគជ័យ!** Banner Title ថ្មីត្រូវបានអាប់ដេត៖\n"${text.trim()}"`, { parse_mode: 'Markdown' });
+        }
+
+        if (state.step === 'WAITING_DELIVERY_FEE') {
+            let inputVal = text.trim();
+            if (!inputVal) return ctx.reply('⚠️ សូមបញ្ចូលតម្លៃ ឬអត្ថបទឱ្យបានត្រឹមត្រូវ!');
+            
+            await pool.query(
+                "INSERT INTO website_settings (key, value) VALUES ('delivery_fee', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                [inputVal]
+            );
+            delete userStates[chatId];
+            return ctx.reply(`✅ **ជោគជ័យ!** ថ្លៃដឹក (Delivery Fee) ត្រូវបានកំណត់ជា៖ **${inputVal}**`, { parse_mode: 'Markdown' });
         }
 
         let uploadedUrl = '';
@@ -1373,6 +1420,7 @@ bot.telegram.setMyCommands([
     { command: 'orders', description: 'មើលបញ្ជីកុម្មង់កំពុងរង់ចាំ (Pending Orders)' },
     { command: 'search', description: 'ស្វែងរកទំនិញតាម Ref (ឧ. /search 1)' },
     { command: 'website', description: 'កែប្រែ Cover, Logo & Banner Text Website' },
+    { command: 'delivery', description: 'កែប្រែថ្លៃដឹក (Delivery Fee ឬ ទូទាត់ជាមួយហាង)' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
