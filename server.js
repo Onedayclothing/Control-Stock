@@ -6,6 +6,14 @@ const fs = require('fs');
 const path = require('path');
 const translate = require('translate-google'); // 📦 Library សម្រាប់បកប្រែស្វ័យប្រវត្តិ
 
+// 🛠️ ចំណុចទី ២: Global Error Handling (ការពារ Server មិនឱ្យ Crash ពេលមាន Error កើតឡើងជាយថាហេតុ)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception thrown:', error);
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -21,15 +29,22 @@ const pool = new Pool({
 const BOT_TOKEN = '8940415740:AAH0f6Ng3dMz0hpgi9_fIY_T-b6a30-AF58';
 const bot = new Telegraf(BOT_TOKEN);
 
+// 🛠️ ចំណុចទី ១: Dynamic Host URL (អាចប្រើប្រាស់ Environment Variable ឬ Railway Domain ស្វ័យប្រវត្តិ)
+const HOST_URL = process.env.RAILWAY_PUBLIC_DOMAIN 
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
+    : 'https://control-stock-production-a855.up.railway.app';
+
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
 
-// មុខងារកត់ត្រា Admin Chat ID ស្វ័យប្រវត្តិ
-async function registerAdmin(chatId) {
+// មុខងារឆែកមើលថាតើ Chat ID នេះជា Admin ឬនៅ
+async function isAdmin(chatId) {
     try {
-        await pool.query("INSERT INTO admins (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING", [chatId]);
+        let res = await pool.query("SELECT * FROM admins WHERE chat_id = $1", [chatId]);
+        return res.rows.length > 0;
     } catch (err) {
-        console.error("Error registering admin:", err);
+        console.error("Error checking admin:", err);
+        return false;
     }
 }
 
@@ -89,7 +104,16 @@ async function initDB() {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS admins (
-                chat_id BIGINT PRIMARY KEY
+                chat_id BIGINT PRIMARY KEY,
+                username VARCHAR(255)
+            );
+        `);
+
+        // Table សម្រាប់ស្គាល់ User ទាំងអស់ដែលធ្លាប់អន្តរកម្មជាមួយ Bot ដើម្បីងាយស្រួល Add Admin តាម Username
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS telegram_users (
+                chat_id BIGINT PRIMARY KEY,
+                username VARCHAR(255)
             );
         `);
 
@@ -358,14 +382,75 @@ app.post('/api/order', async (req, res) => {
 
 // --- TELEGRAM BOT COMMANDS & CALLBACKS ---
 
+// 🔐 ពាក្យបញ្ជា /start ពិនិត្យសិទ្ធិ Admin ឬសុំ PIN Code
 bot.start(async (ctx) => {
-    await registerAdmin(ctx.chat.id);
-    ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+    const chatId = ctx.chat.id;
+    const username = ctx.chat.username || '';
+
+    // រក្សាទុក User ទុកក្នុង Database ស្វ័យប្រវត្តិ
+    try {
+        await pool.query(
+            "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+            [chatId, username]
+        );
+    } catch (err) {
+        console.error("Error saving telegram user:", err);
+    }
+
+    if (await isAdmin(chatId)) {
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+    }
+
+    userStates[chatId] = { action: 'WAITING_PIN' };
+    ctx.reply('🔒 សូមបញ្ចូលលេខកូដសម្ងាត់ (PIN Code) ដើម្បីផ្ទៀងផ្ទាត់សិទ្ធិជា Admin:');
+});
+
+// ➕ ពាក្យបញ្ជាបន្ថែម Admin ថ្មី ឧ. /add username ឬ /add@username
+bot.hears(/^\/add\s*@?(.+)/i, async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) {
+        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ពាក្យបញ្ជាជា Admin ទេ!');
+    }
+
+    let targetUsername = ctx.match[1].trim().replace('@', '');
+    try {
+        let userRes = await pool.query("SELECT chat_id FROM telegram_users WHERE LOWER(username) = LOWER($1)", [targetUsername]);
+        if (userRes.rows.length === 0) {
+            return ctx.reply(`⚠️ រកមិនឃើញ User @${targetUsername} ក្នុងប្រព័ន្ធទេ។ សូមឱ្យពួកគាត់ចូលមកផ្ញើសារ ឬចុច /start ក្នុង Bot សិន ទើបប្រព័ន្ធស្គាល់ ID!`);
+        }
+        let targetChatId = userRes.rows[0].chat_id;
+        await pool.query(
+            "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+            [targetChatId, targetUsername]
+        );
+        ctx.reply(`✅ បានបន្ថែម @${targetUsername} ជា Admin ជោគជ័យ!`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
+});
+
+// ❌ ពាក្យបញ្ជាដកហូតសិទ្ធិ Admin ឧ. /un username ឬ /un@username
+bot.hears(/^\/un\s*@?(.+)/i, async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) {
+        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិប្រើប្រាស់ពាក្យបញ្ជាជា Admin ទេ!');
+    }
+
+    let targetUsername = ctx.match[1].trim().replace('@', '');
+    try {
+        let res = await pool.query("DELETE FROM admins WHERE LOWER(username) = LOWER($1) RETURNING chat_id", [targetUsername]);
+        if (res.rows.length === 0) {
+            return ctx.reply(`⚠️ រកមិនឃើញ Admin @${targetUsername} ក្នុងបញ្ជីឡើយ!`);
+        }
+        ctx.reply(`❌ បានដកហូតសិទ្ធិ Admin ពី @${targetUsername} រួចរាល់!`);
+    } catch (err) {
+        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
+    }
 });
 
 bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
     try {
         let prodRes = await pool.query("SELECT ref FROM products");
         let maxRef = 0;
@@ -382,8 +467,9 @@ bot.command('add', async (ctx) => {
     }
 });
 
-const cancelHandler = (ctx) => {
+const cancelHandler = async (ctx) => {
     const chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return;
     if (userStates[chatId]) {
         delete userStates[chatId];
         ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
@@ -397,14 +483,14 @@ bot.command('cancle', cancelHandler);
 
 bot.command('change', async (ctx) => {
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
     ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
     await handleEditRefSelection(ctx, chatId, cleanRef);
@@ -444,9 +530,11 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
 }
 
 bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
+    let chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
+    
     let field = ctx.match[1];
     let ref = ctx.match[2];
-    let chatId = ctx.chat.id;
 
     if (field === 'cancel') {
         delete userStates[chatId];
@@ -483,9 +571,11 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
 });
 
 bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
+    let chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
+
     let gender = ctx.match[1];
     let ref = ctx.match[2];
-    let chatId = ctx.chat.id;
 
     try {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
@@ -500,7 +590,8 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
+    
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
 
@@ -555,7 +646,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
 bot.command('cleanup', async (ctx) => {
     let chatId = ctx.chat.id;
-    await registerAdmin(chatId);
+    if (!(await isAdmin(chatId))) return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ!');
     try {
         if (!fs.existsSync(videoDir)) {
             return ctx.reply('⚠️ Folder videos/ មិនទាន់មាននៅលើ Server ទេ!');
@@ -595,6 +686,8 @@ bot.command('cleanup', async (ctx) => {
 });
 
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
+    let chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     let orderId = ctx.match[1];
     try {
         await pool.query("UPDATE orders SET status = 'CONFIRMED' WHERE id = $1", [orderId]);
@@ -609,6 +702,8 @@ bot.action(/^confirm_order_(.+)$/, async (ctx) => {
 });
 
 bot.action(/^cancel_order_(.+)$/, async (ctx) => {
+    let chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     let orderId = ctx.match[1];
     try {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
@@ -647,6 +742,7 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
 
 bot.action(/^gender_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     if (!userStates[chatId] || userStates[chatId].step !== 'GENDER') return;
 
     let gender = ctx.match[1];
@@ -673,6 +769,7 @@ bot.action(/^gender_(.+)$/, async (ctx) => {
 
 bot.action(/^type_(.+)$/, async (ctx) => {
     const chatId = ctx.chat.id;
+    if (!(await isAdmin(chatId))) return ctx.answerCbQuery('⛔️ គ្មានសិទ្ធិជា Admin!');
     if (!userStates[chatId] || userStates[chatId].step !== 'TYPE') return;
 
     let type = ctx.match[1];
@@ -720,15 +817,44 @@ bot.action(/^type_(.+)$/, async (ctx) => {
 
 bot.on('message', async (ctx) => {
     const chatId = ctx.chat.id;
-    await registerAdmin(chatId);
-    if (!userStates[chatId]) return;
-    let state = userStates[chatId];
-
-    await ctx.sendChatAction('typing');
-
+    const username = ctx.chat.username || '';
     const msg = ctx.message;
     const text = msg.text || msg.caption || '';
-    const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
+
+    // រក្សាទុក User គ្រប់រូបចូល telegram_users ស្វ័យប្រវត្តិដើម្បីស្គាល់ username
+    try {
+        await pool.query(
+            "INSERT INTO telegram_users (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+            [chatId, username]
+        );
+    } catch (err) {
+        console.error("Error saving telegram user:", err);
+    }
+
+    // 🔐 ពិនិត្យការបំពេញ PIN Code ប្រសិនបើ User កំពុងរង់ចាំផ្ទៀងផ្ទាត់
+    if (userStates[chatId] && userStates[chatId].action === 'WAITING_PIN') {
+        if (text.trim() === 'onedaybyday') {
+            await pool.query(
+                "INSERT INTO admins (chat_id, username) VALUES ($1, $2) ON CONFLICT (chat_id) DO UPDATE SET username = $2",
+                [chatId, username]
+            );
+            delete userStates[chatId];
+            return ctx.reply('✅ ផ្ទៀងផ្ទាត់ជោគជ័យ! ឥឡូវនេះអ្នកជា Admin ផ្លូវការរបស់ OneDay Clothing ហើយ។');
+        } else {
+            return ctx.reply('❌ លេខកូដសម្ងាត់មិនត្រឹមត្រូវទេ! សូមព្យាយាមម្តងទៀត (PIN: onedaybyday)');
+        }
+    }
+
+    if (!userStates[chatId]) return;
+
+    // ប្រសិនបើមិនទាន់ជា Admin ទេ មិនអនុញ្ញាតឱ្យបំពេញជំហាន Admin ឡើយ
+    if (!(await isAdmin(chatId))) {
+        delete userStates[chatId];
+        return ctx.reply('⛔️ អ្នកមិនមានសិទ្ធិជា Admin ទេ។ សូមវាយ /start ដើម្បីផ្ទៀងផ្ទាត់ PIN Code ជាមុនសិន។');
+    }
+
+    let state = userStates[chatId];
+    await ctx.sendChatAction('typing');
 
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
@@ -790,13 +916,13 @@ bot.on('message', async (ctx) => {
                     let filePath = path.join(videoDir, fileName);
                     fs.writeFileSync(filePath, buffer);
 
-                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                    videoUrl = `${HOST_URL}/videos/${fileName}`;
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
             } else if (text.trim()) {
                 let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
@@ -843,13 +969,13 @@ bot.on('message', async (ctx) => {
                     let filePath = path.join(videoDir, fileName);
                     fs.writeFileSync(filePath, buffer);
 
-                    videoUrl = `${RAILWAY_HOST}/videos/${fileName}`;
+                    videoUrl = `${HOST_URL}/videos/${fileName}`;
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យក្នុងការទាញយកវីដេអូ: ${err.message}. សុំ Upload Video សារថ្មី។`);
                 }
             } else if (text.trim()) {
                 let inputUrl = text.trim();
-                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${RAILWAY_HOST}/${inputUrl}`;
+                videoUrl = inputUrl.startsWith('http') ? inputUrl : `${HOST_URL}/${inputUrl}`;
             } else {
                 return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
             }
