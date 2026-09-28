@@ -67,16 +67,11 @@
             -webkit-tap-highlight-color: transparent; 
         }
 
-        body { 
-            background-color: var(--bg-color); 
-            color: var(--primary); 
-            padding-bottom: 120px; 
-            transition: background-color 0.3s, color 0.3s; 
-        }
+        body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 120px; transition: background-color 0.3s, color 0.3s; }
 
         img { max-width: 100%; }
 
-        /* 🛡️ Icon Sizing Fix */
+        /* 🛡️ Strict Icon Sizing Fix */
         nav img, 
         .modal-title img, 
         .btn-cart-view img, 
@@ -126,7 +121,7 @@
 
         /* 🎨 Logo Branding (Light & Dark Mode Adaptive) */
         .logo { 
-            font-size: 20px; 
+            font-size: 18px; 
             font-weight: 800; 
             letter-spacing: -0.5px; 
             line-height: 1;
@@ -442,7 +437,6 @@
                 <button onclick="toggleCartModal()" class="btn-cart-view">
                     <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" loading="lazy">
                     <span data-key="btn_view_cart">មើលកន្ត្រក</span>
-                    <span id="cart-count" style="background: var(--accent); color: white; border-radius: 10px; padding: 2px 6px; font-size: 10px; font-weight: 800; margin-left: 2px;">0</span>
                 </button>
                 <button onclick="prepareOrder()" class="btn-telegram">
                     <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img" loading="lazy">
@@ -704,7 +698,7 @@
                     }
 
                     if (settings.delivery_fee !== undefined) {
-                        let val = String(settings.delivery_fee).trim();
+                        let val = settings.delivery_fee.trim();
                         let parsedNum = parseFloat(val);
                         if (!isNaN(parsedNum)) {
                             deliveryFee = parsedNum;
@@ -727,7 +721,6 @@
                 entries.forEach(entry => {
                     const video = entry.target;
                     if (entry.isIntersecting) {
-                        video.muted = true;
                         video.play().catch(() => {});
                     } else {
                         video.pause();
@@ -847,9 +840,9 @@
                         maxBoundsViscosity: 1.0
                     }).setView([currentPos.lat, currentPos.lng], 13);
                     
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3jby_1_5ff4e5e8b17be757cdfcc3c7', {
                         maxZoom: 19, minZoom: 7, subdomains: 'abcd',
-                        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+                        attribution: '&copy; CARTO'
                     }).addTo(freeMapObj);
 
                     L.control.zoom({ position: 'topleft' }).addTo(freeMapObj);
