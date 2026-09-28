@@ -1211,6 +1211,16 @@
             setInterval(loadWebsiteSettings, 10000);
         });
 
+        // 🛡️ ពេលអតិថិជនត្រឡប់មកកាន់ Website វិញ វានឹងបិទ Modal ទាំងអស់ស្វ័យប្រវត្តិ
+        document.addEventListener("visibilitychange", function() {
+            if (document.visibilityState === "visible") {
+                closeModal('checkoutModal');
+                closeModal('cartModal');
+                closeModal('guideModal');
+                closeModal('mapPickerModal');
+            }
+        });
+
         function playFlyAnimation(event, cardId) {
             let card = document.getElementById(cardId);
             let imgBox = card ? card.querySelector('.img-box video, .img-box img') : null;
@@ -1480,6 +1490,15 @@
                     message += `• ថ្លៃដឹកជញ្ជូន: ${deliveryFeeText}\n`;
                     message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
 
+                    // 🧹 ១. លុបទំនិញចេញពីកន្ត្រកស្វ័យប្រវត្តិ
+                    cart = {};
+                    renderCart();
+
+                    // 🔒 ២. បិទផ្ទាំង Modal ទាំងអស់ស្វ័យប្រវត្តិ
+                    closeModal('checkoutModal');
+                    closeModal('cartModal');
+
+                    // 🚀 ៣. បើកទៅ Telegram
                     window.location.href = `https://t.me/${TELEGRAM_USERNAME}?text=${encodeURIComponent(message)}`;
                 } else {
                     alert(result.message || "មានបញ្ហាពេលកុម្មង់ទំនិញ!");
