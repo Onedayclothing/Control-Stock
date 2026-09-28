@@ -9,7 +9,16 @@ const translate = require('translate-google'); // 📦 Library សម្រា�
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Serve ហ្វាល Static (images, videos, etc.)
+app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
+
+// 📁 កំណត់ Directory Volume លើ Railway ឬ Local Disk
+const videoDir = process.env.STORAGE_PATH || path.join(__dirname, 'videos');
+if (!fs.existsSync(videoDir)) {
+    fs.mkdirSync(videoDir, { recursive: true });
+}
+
+// 🌐 Serve ហ្វាល Static ចេញពី Volume Directory តាម URL /videos
+app.use('/videos', express.static(videoDir));
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
 app.get('/', (req, res) => {
@@ -27,11 +36,16 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Telegram Bot Setup
-const BOT_TOKEN = process.env.BOT_TOKEN || '8631007810:AAFPb8QWKO9z807SXvE_GEZ9-CyACqgBRU0';
-const bot = new Telegraf(BOT_TOKEN);
+// 🔒 Telegram Bot Setup (លុប Hardcoded Token ចោលដើម្បីសុវត្ថិភាព)
+const BOT_TOKEN = process.env.BOT_TOKEN;
+if (!BOT_TOKEN) {
+    console.error('⚠️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
+}
+const bot = new Telegraf(BOT_TOKEN || 'NO_TOKEN_PROVIDED');
 
-const RAILWAY_HOST = 'https://control-stock-production-a855.up.railway.app';
+const RAILWAY_HOST = process.env.RAILWAY_PUBLIC_DOMAIN 
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` 
+    : 'https://control-stock-production-a855.up.railway.app';
 
 // កន្លែងរក្សាទុកដំណាក់កាលបំពេញទិន្នន័យតាម Chat របស់ Admin ម្នាក់ៗ
 let userStates = {};
@@ -77,26 +91,61 @@ async function autoTranslate(text) {
     }
 }
 
-// បង្កើត Folder videos បើមិនទាន់មាន
-const videoDir = path.join(__dirname, 'videos');
-if (!fs.existsSync(videoDir)) {
-    fs.mkdirSync(videoDir, { recursive: true });
+// 🛡️ Helper Function: ពិនិត្យមើលថា File (រូបភាព/វីដេអូ) កំពុងប្រើលើ Web ឬអត់មុននឹងលុប
+async function isMediaInUse(fileName) {
+    if (!fileName) return false;
+    try {
+        let prodCheck = await pool.query(
+            "SELECT COUNT(*) FROM products WHERE video_url LIKE $1",
+            [`%${fileName}%`]
+        );
+        if (parseInt(prodCheck.rows[0].count) > 0) return true;
+
+        let settingsCheck = await pool.query(
+            "SELECT COUNT(*) FROM website_settings WHERE value LIKE $1",
+            [`%${fileName}%`]
+        );
+        if (parseInt(settingsCheck.rows[0].count) > 0) return true;
+
+        return false;
+    } catch (err) {
+        console.error("Error checking media usage:", err);
+        return true; // ការពារកុំឱ្យលុបប្រសិនបើមាន Error
+    }
 }
 
-// 📥 Helper Function ទាញយក និង Save ហ្វាលពី Telegram Bot
-async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'vid') {
+// 🖼️/🎥 Helper Function: ចាប់យក File Object ពីរូបភាព វីដេអូ GIF ឬ Document
+function getTelegramMediaObject(msg) {
+    if (msg.photo && msg.photo.length > 0) {
+        return msg.photo[msg.photo.length - 1]; // ចាប់យករូបភាពដែលច្បាស់ជាងគេ
+    }
+    return msg.video || msg.video_note || msg.animation || msg.document || null;
+}
+
+// 📥 Helper Function ទាញយក និង Save ហ្វាល (រូបភាព ឬ វីដេអូ) ចូល Volume Disk
+async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
     let linkObj = await ctx.telegram.getFileLink(fileId);
     let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
+    
+    // កំណត់ កន្ទុយហ្វាល (.mp4, .jpg, .png, .gif) ស្វ័យប្រវត្តិ
+    let ext = '.mp4';
+    if (fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
+        ext = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)[0].toLowerCase();
+    } else if (fileUrl.match(/\.(mp4|mov|avi|webm)/i)) {
+        ext = fileUrl.match(/\.(mp4|mov|avi|webm)/i)[0].toLowerCase();
+    }
+
     let response = await fetch(fileUrl);
     if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
     let arrayBuffer = await response.arrayBuffer();
     let buffer = Buffer.from(arrayBuffer);
-    let fileName = `${prefix}_${Date.now()}.mp4`;
+    let fileName = `${prefix}_${Date.now()}${ext}`;
+    
     fs.writeFileSync(path.join(videoDir, fileName), buffer);
     return `${RAILWAY_HOST}/videos/${fileName}`;
 }
 
-// បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
+// បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
 async function initDB() {
     try {
         await pool.query(`
@@ -243,7 +292,7 @@ app.get('/api/website-settings', async (req, res) => {
 app.get('/api/delivery-fee', async (req, res) => {
     try {
         let result = await pool.query("SELECT value FROM website_settings WHERE key = 'delivery_fee'");
-        let fee = result.rows.length > 0 ? result.rows.value : '2.00';
+        let fee = result.rows.length > 0 ? result.rows[0].value : '2.00';
         res.json({ delivery_fee: fee });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -478,7 +527,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -578,7 +627,7 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
     }
 });
 
-// 🚚 ពាក្យបញ្ជា /delivery (សម្រាប់កែប្រែថ្លៃដឹកតាម Telegram Bot)
+// 🚚 ពាក្យបញ្ជា /delivery
 bot.command(['delivery', 'Delivery'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -605,7 +654,7 @@ bot.command(['website', 'Website'], async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
-                [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
+                [{ text: '🎬 🖼️ កែប្រែ Cover (Video / Image)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
@@ -624,7 +673,7 @@ bot.action('web_view_settings', async (ctx) => {
         let settings = {};
         res.rows.forEach(r => settings[r.key] = r.value);
 
-        let coverUrl = settings.cover_url || 'Default System Video';
+        let coverUrl = settings.cover_url || 'Default System Media';
         let logoUrl = settings.logo_url || 'Default Logo Text (Oneday.)';
         let cartIconUrl = settings.cart_icon_url || 'Default Cart Icon';
         let mainTitle = settings.cover_title || 'BUILD YOUR DREAM STYLE';
@@ -633,7 +682,7 @@ bot.action('web_view_settings', async (ctx) => {
         let msg = `👁️ **ការកំណត់បច្ចុប្បន្នលើ Website:**\n\n`;
         msg += `📢 **Banner Title:** ${mainTitle}\n`;
         msg += `🚚 **Delivery Fee:** ${isNaN(deliveryFee) ? deliveryFee : '$' + parseFloat(deliveryFee).toFixed(2)}\n`;
-        msg += `🎬 **Cover Video/Image:**\n${coverUrl}\n\n`;
+        msg += `🎬/🖼️ **Cover Media:**\n${coverUrl}\n\n`;
         msg += `🖼️ **Shop Logo:**\n${logoUrl}\n\n`;
         msg += `🛒 **Cart Icon:**\n${cartIconUrl}`;
 
@@ -657,7 +706,7 @@ bot.action('web_back_menu', async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
-                [{ text: '🎬 កែប្រែ Cover / Video Animation', callback_data: 'web_edit_cover' }],
+                [{ text: '🎬 🖼️ កែប្រែ Cover (Video / Image)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
@@ -671,7 +720,7 @@ bot.action('web_edit_cover', async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_COVER' };
     await ctx.answerCbQuery();
-    await ctx.editMessageText('🎬 **សូម Upload Video ឬ Image/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
+    await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
 });
 
 bot.action('web_edit_icon', async (ctx) => {
@@ -691,7 +740,7 @@ bot.action(/^web_set_icon_(logo|cart)$/, async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: `WAITING_ICON_${type.toUpperCase()}` };
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`🖼️ សូម Upload រូបភាពថ្មីសម្រាប់ **${type.toUpperCase()}**:`);
+    await ctx.editMessageText(`🖼️ សូម Upload រូបភាព (Image/PNG) ថ្មីសម្រាប់ **${type.toUpperCase()}**:`);
 });
 
 bot.action('web_edit_title', async (ctx) => {
@@ -942,7 +991,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
                     [{ text: '📝 កែប្រែឈ្មោះ (Title)', callback_data: `edit_f_title_${cleanRef}` }],
                     [{ text: '💵 កែប្រែតម្លៃលក់ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
                     [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
-                    [{ text: '🎥 កែប្រែវីដេអូ (Video)', callback_data: `edit_f_video_${cleanRef}` }],
+                    [{ text: '🎥/🖼️ កែប្រែ Media (Video/Image)', callback_data: `edit_f_video_${cleanRef}` }],
                     [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
                     [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
                 ]
@@ -987,7 +1036,7 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     if (field === 'title') promptText = `✏️ សូមសរសេរឈ្មោះទំនិញថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃលក់ថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
     else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
-    else if (field === 'video') promptText = `🎥 សូម Upload Video ថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === 'video') promptText = `🎥/🖼️ សូម Upload Video ឬ រូបភាព (Image) ថ្មីសម្រាប់ Ref ${ref}:`;
 
     await ctx.editMessageText(promptText);
 });
@@ -1007,6 +1056,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
+// 🗑️ Command /deleteref ដោយមានការការពារ និងលុប File
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1020,19 +1070,29 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
         if (check.rows.length === 0) return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
 
         let product = check.rows[0];
-        if (product.video_url && product.video_url.includes('/videos/')) {
-            try {
-                let fileName = product.video_url.split('/videos/')[1];
-                let filePath = path.join(videoDir, fileName);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            } catch (e) {}
-        }
 
+        // លុបទិន្នន័យចេញពី DB
         let deletedNum = parseInt(cleanRef);
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
+        // 🛡️ ឆែកមើលថា File កំពុងប្រើប្រាស់កន្លែងផ្សេងទៀតឬអត់ មុនពេលលុបចេញពី Volume Disk
+        if (product.video_url && product.video_url.includes('/videos/')) {
+            try {
+                let fileName = product.video_url.split('/videos/').pop().split('?')[0];
+                let filePath = path.join(videoDir, fileName);
+
+                let inUse = await isMediaInUse(fileName);
+                if (!inUse && fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (e) {
+                console.error("Error deleting file:", e);
+            }
+        }
+
+        // រំកិលលេខ Ref ឡើងលើ
         if (!isNaN(deletedNum)) {
             let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
             for (let row of allProds.rows) {
@@ -1052,6 +1112,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
+// 🧹 Command /cleanup ដោយមានការការពារ File លើ Website
 bot.command('cleanup', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1060,27 +1121,19 @@ bot.command('cleanup', async (ctx) => {
     try {
         if (!fs.existsSync(videoDir)) return ctx.reply('⚠️ គ្មាន Folder វីដេអូទេ!');
         let files = fs.readdirSync(videoDir);
-        let prodRes = await pool.query("SELECT video_url FROM products");
-        let usedFiles = new Set();
-        
-        prodRes.rows.forEach(p => {
-            if (p.video_url) {
-                let parts = p.video_url.split('/videos/');
-                if (parts.length > 1) usedFiles.add(parts[1]);
-            }
-        });
 
         let deletedCount = 0;
-        files.forEach(file => {
-            if (!usedFiles.has(file)) {
+        for (let file of files) {
+            let inUse = await isMediaInUse(file);
+            if (!inUse) {
                 try {
                     fs.unlinkSync(path.join(videoDir, file));
                     deletedCount++;
                 } catch (e) {}
             }
-        });
+        }
 
-        ctx.reply(`🧹 សម្អាតវីដេអូចាស់ៗបានចំនួន ${deletedCount} ហ្វាល!`);
+        ctx.reply(`🧹 សម្អាត Media ចាស់ៗដែលមិនបានប្រើប្រាស់បានចំនួន ${deletedCount} ហ្វាល! (File ដែលកំពុងបង្ហាញលើ Web ត្រូវបានរក្សាទុក)`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1233,7 +1286,7 @@ bot.on('message', async (ctx) => {
 
     await ctx.sendChatAction('typing');
 
-    // 🎬 ដំណើរការកំណត់ Website (/website និង /delivery)
+    // 🎬/🖼️ ដំណើរការកំណត់ Website (/website និង /delivery)
     if (state.action === 'WEBSITE') {
         if (state.step === 'WAITING_TITLE') {
             if (!text.trim()) return ctx.reply('⚠️ សូមផ្ញើសារ/អក្សរឱ្យបានត្រឹមត្រូវ!');
@@ -1258,7 +1311,7 @@ bot.on('message', async (ctx) => {
         }
 
         let uploadedUrl = '';
-        let fileObj = msg.video || msg.video_note || msg.animation || msg.document || (msg.photo ? msg.photo[msg.photo.length - 1] : null);
+        let fileObj = getTelegramMediaObject(msg);
 
         if (fileObj) {
             if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
@@ -1336,25 +1389,43 @@ bot.on('message', async (ctx) => {
         }
         if (state.step === 'UPDATE_VIDEO') {
             let videoUrl = '';
-            let fileObj = msg.video || msg.video_note || msg.animation || msg.document;
+            let fileObj = getTelegramMediaObject(msg);
 
             if (fileObj) {
                 if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលវីដេអូនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមវីដេអូ ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
+                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។');
                 }
                 try {
-                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'vid');
+                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
                 videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
             } else {
-                return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
+                return ctx.reply('⚠️ សូម Upload Video ឬ រូបភាព (Image) ឱ្យបានត្រឹមត្រូវ!');
             }
-            await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
+
+            // 🛡️ លុប Media ចាស់ ប្រសិនបើវាគ្មានប្រយោជន៍លើ Web ទៀត
+            try {
+                let oldProd = await pool.query("SELECT video_url FROM products WHERE UPPER(ref) = $1", [ref]);
+                if (oldProd.rows.length > 0 && oldProd.rows[0].video_url && oldProd.rows[0].video_url.includes('/videos/')) {
+                    let oldFileName = oldProd.rows[0].video_url.split('/videos/').pop().split('?')[0];
+                    await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
+                    let inUse = await isMediaInUse(oldFileName);
+                    if (!inUse) {
+                        let oldFilePath = path.join(videoDir, oldFileName);
+                        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+                    }
+                } else {
+                    await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
+                }
+            } catch (e) {
+                await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
+            }
+
             delete userStates[chatId];
-            return ctx.reply(`✅ កែប្រែវីដេអូ Ref ${ref} ជោគជ័យ!`);
+            return ctx.reply(`✅ កែប្រែ Media សម្រាប់ Ref ${ref} ជោគជ័យ!`);
         }
         return;
     }
@@ -1378,24 +1449,24 @@ bot.on('message', async (ctx) => {
         case 'DESC':
             state.data.desc_km = text.trim();
             state.step = 'VIDEO';
-            return ctx.reply('សុំ Upload Video (ឬផ្ញើជាហ្វាល/លីង):');
+            return ctx.reply('សូម Upload វីដេអូ ឬ រូបភាព (Image/Video/GIF/Link):');
         case 'VIDEO':
             let videoUrl = '';
-            let fileObj = msg.video || msg.video_note || msg.animation || msg.document;
+            let fileObj = getTelegramMediaObject(msg);
 
             if (fileObj) {
                 if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលវីដេអូនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួម (Compress) វីដេអូឱ្យតូចជាង 20MB ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
+                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។');
                 }
                 try {
-                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'vid');
+                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
                 videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
             } else {
-                return ctx.reply('⚠️ សុំ Upload Video ឱ្យបានត្រឹមត្រូវ!');
+                return ctx.reply('⚠️ សូម Upload Video ឬ រូបភាព (Image) ឱ្យបានត្រឹមត្រូវ!');
             }
 
             state.data.video_url = videoUrl;
@@ -1419,12 +1490,12 @@ bot.telegram.setMyCommands([
     { command: 'stats', description: 'មើលរបាយការណ៍ និងស្ថិតិសរុប' },
     { command: 'orders', description: 'មើលបញ្ជីកុម្មង់កំពុងរង់ចាំ (Pending Orders)' },
     { command: 'search', description: 'ស្វែងរកទំនិញតាម Ref (ឧ. /search 1)' },
-    { command: 'website', description: 'កែប្រែ Cover, Logo & Banner Text Website' },
+    { command: 'website', description: 'កែប្រែ Cover (Image/Video), Logo & Banner' },
     { command: 'delivery', description: 'កែប្រែថ្លៃដឹក (Delivery Fee ឬ ទូទាត់ជាមួយហាង)' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
-    { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក' },
+    { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក (Image/Video)' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
-    { command: 'cleanup', description: 'សម្អាតវីដេអូចាស់ៗលើ Server Disk' },
+    { command: 'cleanup', description: 'សម្អាត Media ចាស់ៗដែលមិនបានប្រើប្រាស់' },
     { command: 'cancel', description: 'បោះបង់សកម្មភាពកំពុងរត់' },
     { command: 'setmeowner', description: 'កំណត់សិទ្ធិ Owner (ប្រើពេលដំបូង)' }
 ]).catch(err => console.error("Set commands error:", err));
