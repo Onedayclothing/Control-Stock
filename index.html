@@ -9,13 +9,13 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Oneday Clothing | Premium Collection">
     <meta property="og:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
-    <meta property="og:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
-    <meta property="og:url" content="https://control-stock-production-a855.up.railway.app/">
+    <meta property="og:image" content="videos/cover_placeholder.jpg">
+    <meta property="og:url" content="/">
     <meta property="og:site_name" content="Oneday Clothing">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Oneday Clothing | Premium Collection">
     <meta name="twitter:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
-    <meta name="twitter:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
+    <meta name="twitter:image" content="videos/cover_placeholder.jpg">
     
     <link href="https://fonts.googleapis.com/css2?family=Content:wght@400;700&family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
     
@@ -607,7 +607,8 @@
         const TELEGRAM_USERNAME = "OneDayClothingAgent";
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
-        const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
+        // 🌐 ប្រើប្រាស់ Dynamic Domain ស្វ័យប្រវត្តិ
+        const RAILWAY_API_URL = window.location.origin;
 
         let stockData = {};
         let priceData = {};
@@ -616,6 +617,8 @@
         let cart = {};
         let currentGender = 'men';
         let currentType = 'all';
+
+        let isOrderPlaced = false; // Flag ការពារពេល Switch App
 
         let currentPage = 1;
         const productsPerPage = 6;
@@ -851,11 +854,13 @@
             }
         }
 
-        function prepareOrder() {
+        async function prepareOrder() {
             if (Object.keys(cart).length === 0) {
                 alert(translations[currentLang].empty_cart);
                 return;
             }
+            // 🔄 ឆែក និង Sync ស្តុកថ្មីៗមុនពេលចូលដល់ Checkout
+            await backgroundSyncStock();
             closeModal('cartModal');
             openModal('checkoutModal');
             loadUserInfo();
@@ -1211,13 +1216,14 @@
             setInterval(loadWebsiteSettings, 10000);
         });
 
-        // 🛡️ ពេលអតិថិជនត្រឡប់មកកាន់ Website វិញ វានឹងបិទ Modal ទាំងអស់ស្វ័យប្រវត្តិ
+        // 🛡️ ពេលអតិថិជន Order រួច ត្រឡប់មកកាន់ Website វិញ វានឹងបិទ Modal ទាំងអស់ស្វ័យប្រវត្តិ
         document.addEventListener("visibilitychange", function() {
-            if (document.visibilityState === "visible") {
+            if (document.visibilityState === "visible" && isOrderPlaced) {
                 closeModal('checkoutModal');
                 closeModal('cartModal');
                 closeModal('guideModal');
                 closeModal('mapPickerModal');
+                isOrderPlaced = false; // Reset មកវិញ
             }
         });
 
@@ -1490,9 +1496,11 @@
                     message += `• ថ្លៃដឹកជញ្ជូន: ${deliveryFeeText}\n`;
                     message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
 
-                    // 🧹 ១. លុបទំនិញចេញពីកន្ត្រកស្វ័យប្រវត្តិ
+                    // 🧹 ១. លុបទំនិញចេញពីកន្ត្រកស្វ័យប្រវត្តិ និង Update Stock លើ Card
                     cart = {};
                     renderCart();
+                    updateAllCardStocks();
+                    isOrderPlaced = true;
 
                     // 🔒 ២. បិទផ្ទាំង Modal ទាំងអស់ស្វ័យប្រវត្តិ
                     closeModal('checkoutModal');
