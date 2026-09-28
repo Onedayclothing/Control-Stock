@@ -193,7 +193,7 @@
             background-size: 7px auto;
         }
 
-        /* 🧠 SMART RESPONSIVE COVER CONTAINER (Fixed Jitter) */
+        /* 🧠 SMART RESPONSIVE COVER CONTAINER (Fixed Jitter & Slider) */
         .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 8px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
         .cover-slider::-webkit-scrollbar { display: none; }
@@ -207,7 +207,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            aspect-ratio: 16/9; /* កំណត់ទំហំថេរការពារການញាក់ពេល Video Load */
+            aspect-ratio: 16/9; /* កំណត់ទំហំថេរការពារការញាក់ពេល Video Load */
         }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
         .cover-image-box video, .cover-image-box img { 
@@ -384,26 +384,18 @@
         </div>
     </nav>
 
-    <div class="cover-container">
+    <!-- 🧠 Dynamic Cover Container with Slider, Auto-Slide & Nav Buttons -->
+    <div class="cover-container" style="position: relative;">
         <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()">
-            <div class="cover-slide-item">
-                <div class="cover-image-box" id="coverBoxContainer">
-                    <video id="heroCoverVideo" autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
-                        <source src="https://control-stock-production-a855.up.railway.app/videos/VID_20260905221119531.mp4" type="video/mp4">
-                    </video>
-                </div>
-            </div>
-            <div class="cover-slide-item">
-                <div class="cover-image-box">
-                    <video autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
-                        <source src="https://control-stock-production-a855.up.railway.app/videos/gemini_generated_video_1CCC7921.mp4" type="video/mp4">
-                    </video>
-                </div>
-            </div>
+            <!-- Covers will be injected dynamically via API -->
         </div>
+
+        <!-- ⬅️➡️ Left / Right Navigation Buttons -->
+        <button onclick="scrollCover(-1)" style="position: absolute; left: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">‹</button>
+        <button onclick="scrollCover(1)" style="position: absolute; right: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">›</button>
+
         <div class="cover-dots" id="coverDots">
-            <div class="cover-dot active"></div>
-            <div class="cover-dot"></div>
+            <!-- Dots will be generated dynamically -->
         </div>
         <div class="cover-info">
             <div class="sub-title">Simple · Modern · Confident</div>
@@ -605,7 +597,6 @@
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
         
-        // 🧠 ស្គាល់ dynamic ស្វ័យប្រវត្តិ៖ បើដើរលើ GitHub Pages រត់ទៅ Railway Backend, បើដើរលើ Railway ប្រើ location.origin
         const RAILWAY_API_URL = window.location.hostname.includes("github.io")
             ? "https://control-stock-production-a855.up.railway.app"
             : window.location.origin;
@@ -626,6 +617,9 @@
         let freeMapObj = null;
         let freeMarker = null;
         let currentPos = { lat: 11.5564, lng: 104.9282 };
+
+        let slideInterval = null;
+        const SLIDE_DELAY = 4000; // ⏱️ កំណត់ពេល ៤ វិនាទី (4000ms) ឱ្យវាប្តូរ Cover ស្វ័យប្រវត្តិ
 
         const cambodiaBounds = L.latLngBounds(
             [10.3807, 102.3323],
@@ -701,25 +695,88 @@
             return cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp');
         }
 
+        // 🎬 មុខងារទាញយក Cover ទាំងអស់ពី Server មកបង្ហាញជា Slider
+        async function loadDynamicCovers() {
+            try {
+                let response = await fetch(`${RAILWAY_API_URL}/api/website-covers`);
+                if (response.ok) {
+                    let covers = await response.json();
+                    let slider = document.getElementById('coverSlider');
+                    let dotsContainer = document.getElementById('coverDots');
+                    
+                    if (covers.length > 0 && slider && dotsContainer) {
+                        let sliderHtml = '';
+                        let dotsHtml = '';
+
+                        covers.forEach((cov, idx) => {
+                            let isActiveDot = idx === 0 ? 'active' : '';
+                            dotsHtml += `<div class="cover-dot ${isActiveDot}"></div>`;
+
+                            if (isImageUrl(cov.cover_url)) {
+                                sliderHtml += `
+                                    <div class="cover-slide-item">
+                                        <div class="cover-image-box">
+                                            <img src="${cov.cover_url}" alt="Cover ${idx + 1}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                        </div>
+                                    </div>`;
+                            } else {
+                                sliderHtml += `
+                                    <div class="cover-slide-item">
+                                        <div class="cover-image-box">
+                                            <video autoplay loop muted playsinline webkit-playsinline preload="auto" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                                <source src="${cov.cover_url}" type="video/mp4">
+                                            </video>
+                                        </div>
+                                    </div>`;
+                            }
+                        });
+
+                        slider.innerHTML = sliderHtml;
+                        dotsContainer.innerHTML = dotsHtml;
+                        startAutoSlide();
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading dynamic covers:", err);
+            }
+        }
+
+        // 🔄 ប៊ូតុងអូសទៅឆ្វេង ឬ ស្តាំ (Prev / Next Buttons)
+        function scrollCover(direction) {
+            const slider = document.getElementById('coverSlider');
+            if (!slider) return;
+            let slideWidth = slider.clientWidth;
+            slider.scrollBy({ left: direction * slideWidth, behavior: 'smooth' });
+            resetAutoSlide();
+        }
+
+        // ⏱️ ប្រព័ន្ធ Auto-Slide តាម Time Delay
+        function startAutoSlide() {
+            if (slideInterval) clearInterval(slideInterval);
+            slideInterval = setInterval(() => {
+                const slider = document.getElementById('coverSlider');
+                if (!slider) return;
+                let slideWidth = slider.clientWidth;
+                let maxScrollLeft = slider.scrollWidth - slider.clientWidth;
+                
+                if (slider.scrollLeft + slideWidth >= maxScrollLeft - 10) {
+                    slider.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    slider.scrollBy({ left: slideWidth, behavior: 'smooth' });
+                }
+            }, SLIDE_DELAY);
+        }
+
+        function resetAutoSlide() {
+            clearInterval(slideInterval);
+            startAutoSlide();
+        }
+
         async function loadWebsiteSettings() {
             try {
                 let response = await fetch(`${RAILWAY_API_URL}/api/website-settings`);
                 if (response.ok) {
                     let settings = await response.json();
-
-                    if (settings.cover_url) {
-                        let coverContainer = document.getElementById('coverBoxContainer');
-                        if (coverContainer) {
-                            if (isImageUrl(settings.cover_url)) {
-                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:100%; display:block; object-fit:cover;">`;
-                            } else {
-                                coverContainer.innerHTML = `
-                                    <video id="heroCoverVideo" autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" style="width:100%; height:100%; display:block; object-fit:cover;">
-                                        <source src="${settings.cover_url}" type="video/mp4">
-                                    </video>`;
-                            }
-                        }
-                    }
 
                     if (settings.cart_icon_url) {
                         let cartIcons = document.querySelectorAll('.dynamic-cart-icon');
@@ -812,6 +869,7 @@
         function updateCoverDots() {
             const slider = document.getElementById('coverSlider');
             const dots = document.getElementById('coverDots').children;
+            if (!slider || !dots || dots.length === 0) return;
             const scrollLeft = slider.scrollLeft;
             const slideWidth = slider.clientWidth;
             const currentIndex = Math.round(scrollLeft / slideWidth);
@@ -1205,10 +1263,10 @@
             checkAutoTheme();
             setupVideoObserver();
             await loadWebsiteSettings();
+            await loadDynamicCovers(); // 🎬 Load Multi-Covers ស្វ័យប្រវត្តិ
             await loadDynamicProducts();
             loadUserInfo();
 
-            // 🧠 កែសម្រួលពេលវេលា Sync ឱ្យយូរជាងមុន (៣០វិនាទី និង ១នាទី) ដើម្បីកុំឱ្យ Browser ញាក់ពេល Scroll
             setInterval(backgroundSyncStock, 30000); 
             setInterval(loadWebsiteSettings, 60000);  
         });
