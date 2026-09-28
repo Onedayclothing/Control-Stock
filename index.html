@@ -67,11 +67,16 @@
             -webkit-tap-highlight-color: transparent; 
         }
 
-        body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 120px; transition: background-color 0.3s, color 0.3s; }
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--primary); 
+            padding-bottom: 120px; 
+            transition: background-color 0.3s, color 0.3s; 
+        }
 
         img { max-width: 100%; }
 
-        /* 🛡️ Strict Icon Sizing Fix */
+        /* 🛡️ Icon Sizing Fix */
         nav img, 
         .modal-title img, 
         .btn-cart-view img, 
@@ -119,18 +124,20 @@
             transition: background 0.3s; 
         }
 
+        /* 🎨 Logo Branding (Light & Dark Mode Adaptive) */
         .logo { 
-            font-size: 18px; 
+            font-size: 20px; 
             font-weight: 800; 
             letter-spacing: -0.5px; 
-            color: var(--accent); 
             line-height: 1;
             font-family: var(--nav-font);
             display: flex;
             align-items: center;
             gap: 6px;
         }
-        .logo span { color: var(--primary); }
+        .logo .brand-one { color: var(--accent); }
+        .logo .brand-day { color: var(--primary); transition: color 0.3s; }
+        .logo .brand-dot { color: var(--accent); }
         .logo-img { height: 26px !important; width: auto !important; max-width: 120px !important; object-fit: contain; display: none; }
 
         .nav-right { display: flex; align-items: center; gap: 5px; }
@@ -191,7 +198,6 @@
             background-size: 7px auto;
         }
 
-        /* 📐 Cover Container set to Aspect Ratio 2.55:1 (Width 1260 / Height 495) */
         .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 8px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
         .cover-slider::-webkit-scrollbar { display: none; }
@@ -342,7 +348,9 @@
     <nav>
         <div class="logo">
             <img id="site-logo" class="logo-img" src="" alt="Site Logo" loading="lazy">
-            <span id="logo-text">Oneday<span>.</span></span>
+            <span id="logo-text">
+                <span class="brand-one">One</span><span class="brand-day">day</span><span class="brand-dot">.</span>
+            </span>
         </div>
         <div class="nav-right">
             <button class="guide-top-btn" onclick="toggleGuideModal()">
@@ -434,6 +442,7 @@
                 <button onclick="toggleCartModal()" class="btn-cart-view">
                     <img class="dynamic-cart-icon" src="images/IMG_5827.png" alt="Cart" loading="lazy">
                     <span data-key="btn_view_cart">មើលកន្ត្រក</span>
+                    <span id="cart-count" style="background: var(--accent); color: white; border-radius: 10px; padding: 2px 6px; font-size: 10px; font-weight: 800; margin-left: 2px;">0</span>
                 </button>
                 <button onclick="prepareOrder()" class="btn-telegram">
                     <img src="images/IMG_5838.png" alt="Order Icon" class="btn-order-img" loading="lazy">
@@ -687,14 +696,6 @@
                         }
                     }
 
-                    if (settings.logo_url) {
-                        let logoImg = document.getElementById('site-logo');
-                        if (logoImg) {
-                            logoImg.src = settings.logo_url;
-                            logoImg.style.display = 'inline-block';
-                        }
-                    }
-
                     if (settings.cart_icon_url) {
                         let cartIcons = document.querySelectorAll('.dynamic-cart-icon');
                         cartIcons.forEach(icon => {
@@ -703,7 +704,7 @@
                     }
 
                     if (settings.delivery_fee !== undefined) {
-                        let val = settings.delivery_fee.trim();
+                        let val = String(settings.delivery_fee).trim();
                         let parsedNum = parseFloat(val);
                         if (!isNaN(parsedNum)) {
                             deliveryFee = parsedNum;
@@ -726,6 +727,7 @@
                 entries.forEach(entry => {
                     const video = entry.target;
                     if (entry.isIntersecting) {
+                        video.muted = true;
                         video.play().catch(() => {});
                     } else {
                         video.pause();
@@ -845,9 +847,9 @@
                         maxBoundsViscosity: 1.0
                     }).setView([currentPos.lat, currentPos.lng], 13);
                     
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3jby_1_5ff4e5e8b17be757cdfcc3c7', {
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                         maxZoom: 19, minZoom: 7, subdomains: 'abcd',
-                        attribution: '&copy; CARTO'
+                        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
                     }).addTo(freeMapObj);
 
                     L.control.zoom({ position: 'topleft' }).addTo(freeMapObj);
