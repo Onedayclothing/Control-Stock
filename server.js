@@ -922,6 +922,7 @@ bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     }
 });
 
+// 📦 មុខងារ /add (ប្រាប់ Ref បន្ទាប់ និងតម្រូវឱ្យ Admin វាយ Ref ដោយខ្លួនឯង)
 bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -934,10 +935,10 @@ bot.command('add', async (ctx) => {
             let num = parseInt(r.ref);
             if (!isNaN(num) && num > maxRef) maxRef = num;
         });
-        let nextRef = String(maxRef + 1);
+        let suggestedRef = String(maxRef + 1);
 
-        userStates[chatId] = { action: 'ADD', step: 'TITLE', data: { ref: nextRef } };
-        ctx.reply(`📦 ចាប់ផ្តើមបន្ថែមទំនិញថ្មី (Ref : ${nextRef})\nសរសេរ : បញ្ចូលឈ្មោះទំនិញ`);
+        userStates[chatId] = { action: 'ADD', step: 'GET_REF' };
+        ctx.reply(`📦 **បន្ថែមទំនិញថ្មី**\n\n💡 លេខ Ref ដែលអាចប្រើបានបន្ទាប់គឺ: **${suggestedRef}**\n\nសូមបញ្ចូលលេខ Ref ដែលបងចង់កំណត់ (ឧ. ${suggestedRef} ឬលេខផ្សេងទៀត)៖`, { parse_mode: 'Markdown' });
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1057,7 +1058,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ Command /deleteref
+// 🗑️ Command /deleteref (លុបចោលការរំកិលលេខ Ref)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1072,8 +1073,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
         let product = check.rows[0];
 
-        // លុបទិន្នន័យចេញពី DB
-        let deletedNum = parseInt(cleanRef);
+        // លុបទិន្នន័យចេញពី DB (ដោយមិនរំកិលលេខ Ref ផ្សេងឡើយ)
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
@@ -1093,21 +1093,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
             }
         }
 
-        // រំកិលលេខ Ref ឡើងលើ
-        if (!isNaN(deletedNum)) {
-            let allProds = await pool.query("SELECT ref FROM products ORDER BY CAST(ref AS INTEGER) ASC");
-            for (let row of allProds.rows) {
-                let currentNum = parseInt(row.ref);
-                if (!isNaN(currentNum) && currentNum > deletedNum) {
-                    let newNum = currentNum - 1;
-                    await pool.query("UPDATE products SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
-                    await pool.query("UPDATE stock SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
-                    await pool.query("UPDATE purchases SET ref = $1 WHERE ref = $2", [String(newNum), row.ref]);
-                }
-            }
-        }
-
-        ctx.reply(`🗑️ លុប Ref ${cleanRef} និងរំកិលលេខកូដទំនិញជោគជ័យ!`);
+        ctx.reply(`🗑️ បានលុប Ref ${cleanRef} រួចរាល់! (លេខ Ref ផ្សេងទៀតត្រូវបានរក្សានៅដដែល)`);
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1240,7 +1226,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
             }
         }
 
-        await ctx.reply('បន្ថែមទំនិញថ្មីជោគជ័យ! 📦');
+        await ctx.reply(`បន្ថែមទំនិញ Ref ${cleanRef} ថ្មីជោគជ័យ! 📦`);
     } catch (err) {
         await ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1433,6 +1419,20 @@ bot.on('message', async (ctx) => {
 
     // 📦 ដំណើរការ បន្ថែមទំនិញថ្មី (/add)
     switch (state.step) {
+        case 'GET_REF':
+            let inputRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
+            if (!inputRef) return ctx.reply('⚠️ សូមបញ្ចូលលេខ Ref ឱ្យបានត្រឹមត្រូវ!');
+            
+            // 🛡️ ពិនិត្យមើលថាតើ Ref នេះមានក្នុង DB រួចហើយឬនៅ (ឆែកស្ទួន)
+            let checkDup = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [inputRef]);
+            if (checkDup.rows.length > 0) {
+                return ctx.reply(`⚠️ លេខ Ref **${inputRef}** នេះមានក្នុងប្រព័ន្ធរួចហើយ! សូមបញ្ចូលលេខ Ref ផ្សេងទៀត៖`, { parse_mode: 'Markdown' });
+            }
+
+            state.data = { ref: inputRef };
+            state.step = 'TITLE';
+            return ctx.reply(`✅ ជ្រើសរើសប្រើប្រាស់ Ref : **${inputRef}**\n\nសូមសរសេរបញ្ចូលឈ្មោះទំនិញ៖`, { parse_mode: 'Markdown' });
+
         case 'TITLE':
             if (!text.trim()) return ctx.reply('⚠️ បញ្ចូលឈ្មោះទំនិញ');
             state.data.title_km = text.trim();
