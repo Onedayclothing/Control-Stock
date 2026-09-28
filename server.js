@@ -738,26 +738,34 @@ bot.action('web_back_menu', async (ctx) => {
     });
 });
 
-// 🎬 Multi-Cover Management Menu
+// 🎬 Multi-Cover Management Menu (Add & Delete Handlers)
 bot.action('web_edit_cover', async (ctx) => {
-    await ctx.answerCbQuery();
-    await ctx.editMessageText('🎬/🖼️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
-        parse_mode: 'Markdown',
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
-                [{ text: '🗑️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
-                [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
-            ]
-        }
-    });
+    try {
+        await ctx.answerCbQuery();
+        await ctx.editMessageText('🎬/🖼️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
+                    [{ text: '🗑️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
+                    [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
+                ]
+            }
+        });
+    } catch (err) {
+        console.error("Error in web_edit_cover:", err);
+    }
 });
 
 bot.action('web_cover_add', async (ctx) => {
     const chatId = ctx.chat.id;
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_ADD_COVER' };
-    await ctx.answerCbQuery();
-    await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+    try {
+        await ctx.answerCbQuery();
+        await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+    } catch (err) {
+        console.error("Error in web_cover_add:", err);
+    }
 });
 
 bot.action('web_cover_delete_list', async (ctx) => {
@@ -778,7 +786,8 @@ bot.action('web_cover_delete_list', async (ctx) => {
             reply_markup: { inline_keyboard }
         });
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+        console.error("Error in web_cover_delete_list:", err);
+        await ctx.answerCbQuery('❌ មានបញ្ហាទាញយកទិន្នន័យ', { show_alert: true });
     }
 });
 
@@ -806,7 +815,8 @@ bot.action(/^del_cover_(\d+)$/, async (ctx) => {
             }
         });
     } catch (err) {
-        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+        console.error("Error deleting cover ID:", coverId, err);
+        await ctx.answerCbQuery('❌ មានបញ្ហាពេលលុប', { show_alert: true });
     }
 });
 
@@ -1523,7 +1533,7 @@ bot.on('message', async (ctx) => {
             }
             state.data.price = parsedPrice;
             state.step = 'DESC';
-            return ctx.reply('សូមសរសេរការបរិយាយពីទំនិញ:');
+            return ctx.reply('សូមសេរការបរិយាយពីទំនិញ:');
         case 'DESC':
             state.data.desc_km = text.trim();
             state.step = 'VIDEO';
