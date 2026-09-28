@@ -300,6 +300,7 @@ app.get('/api/delivery-fee', async (req, res) => {
     }
 });
 
+// 🛡️ Safe Ordering (មិន Crash ប្រសិនបើ Ref ជាអក្សរ)
 app.get('/api/products', async (req, res) => {
     try {
         const query = `
@@ -308,7 +309,7 @@ app.get('/api/products', async (req, res) => {
             FROM products p
             LEFT JOIN stock s ON p.ref = s.ref
             GROUP BY p.ref
-            ORDER BY CAST(p.ref AS INTEGER) DESC;
+            ORDER BY NULLIF(regexp_replace(p.ref, '\\D', '', 'g'), '')::NUMERIC DESC NULLS LAST, p.ref DESC;
         `;
         let result = await pool.query(query);
         res.json(result.rows);
@@ -317,9 +318,10 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+// 🛡️ Safe Ordering (មិន Crash ប្រសិនបើ Ref ជាអក្សរ)
 app.get('/api/stock', async (req, res) => {
     try {
-        let result = await pool.query("SELECT * FROM stock ORDER BY CAST(ref AS INTEGER) ASC, size");
+        let result = await pool.query("SELECT * FROM stock ORDER BY NULLIF(regexp_replace(ref, '\\D', '', 'g'), '')::NUMERIC ASC NULLS LAST, ref ASC, size");
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -528,7 +530,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -762,7 +764,7 @@ bot.action('web_cancel', async (ctx) => {
     const chatId = ctx.chat.id;
     delete userStates[chatId];
     await ctx.answerCbQuery('❌ បានបោះបង់');
-    await ctx.editMessageText('❌ បានលុបចោលដំណើរការកំណត់ Website រួចរាល់។');
+    await ctx.editMessageText('❌ បានលុបចោលដំណើរការកំណត់ Website រួចរាល់。');
 });
 
 bot.command('setmeowner', async (ctx) => {
@@ -777,7 +779,7 @@ bot.command('setmeowner', async (ctx) => {
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
             [chatId, username]
         );
-        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។');
+        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ。');
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -948,7 +950,7 @@ const cancelHandler = async (ctx) => {
     const chatId = ctx.chat.id;
     if (userStates[chatId]) {
         delete userStates[chatId];
-        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់។');
+        ctx.reply('❌ បានលុបចោលដំណើរការរួចរាល់。');
     } else {
         ctx.reply('ℹ️ គ្មានដំណើរការណាកំពុងរត់ទេ។');
     }
@@ -1012,7 +1014,7 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     if (field === 'cancel') {
         delete userStates[chatId];
         await ctx.answerCbQuery('❌ បានបោះបង់');
-        return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់។');
+        return ctx.editMessageText('❌ បានលុបចោលដំណើរការរួចរាល់。');
     }
 
     if (field === 'gender') {
@@ -1052,7 +1054,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
         await pool.query("UPDATE products SET gender = $1 WHERE UPPER(ref) = $2", [gender, ref]);
         delete userStates[chatId];
         await ctx.answerCbQuery('✅ បានកែប្រែភេទជោគជ័យ!');
-        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់។`);
+        await ctx.editMessageText(`✅ ជោគជ័យ! ទំនិញ Ref ${ref} ត្រូវបានកែប្រែភេទរួចរាល់。`);
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
     }
@@ -1259,14 +1261,14 @@ bot.on('message', async (ctx) => {
                 [chatId, username, isFirst]
             );
             delete userStates[chatId];
-            return ctx.reply(isFirst ? '👑 Password ត្រឹមត្រូវ! អ្នកជា Owner ផ្លូវការ!' : '✅ Password ត្រឹមត្រូវ! សូមផ្ញើ /start សារថ្មី។');
+            return ctx.reply(isFirst ? '👑 Password ត្រឹមត្រូវ! អ្នកជា Owner ផ្លូវការ!' : '✅ Password ត្រឹមត្រូវ! សូមផ្ញើ /start សារថ្មី。');
         } else {
             return ctx.reply('❌ Password មិនត្រឹមត្រូវទេ!');
         }
     }
 
     let authorized = await isAdminUser(chatId, username);
-    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
+    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password。');
 
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
@@ -1302,7 +1304,7 @@ bot.on('message', async (ctx) => {
 
         if (fileObj) {
             if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមហ្វាល ឬផ្ញើជា Link (http...) ជំនួសវិញ។');
+                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមហ្វាល ឬផ្ញើជា Link (http...) ជំនួសវិញ。');
             }
             try {
                 uploadedUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'web');
@@ -1380,7 +1382,7 @@ bot.on('message', async (ctx) => {
 
             if (fileObj) {
                 if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។');
+                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ。');
                 }
                 try {
                     videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
@@ -1457,7 +1459,7 @@ bot.on('message', async (ctx) => {
 
             if (fileObj) {
                 if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ។');
+                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ。');
                 }
                 try {
                     videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
