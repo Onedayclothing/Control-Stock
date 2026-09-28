@@ -748,6 +748,7 @@ bot.action('web_edit_cover', async (ctx) => {
                 inline_keyboard: [
                     [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
                     [{ text: '🗑️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
+                    [{ text: '🔥 លុប Cover ចាស់ៗទាំងអស់ (Delete All)', callback_data: 'web_cover_delete_all' }],
                     [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
                 ]
             }
@@ -791,17 +792,31 @@ bot.action('web_cover_delete_list', async (ctx) => {
     }
 });
 
+// 🔥 ប៊ូតុងលុប Cover ទាំងអស់ចោលតែម្តង
+bot.action('web_cover_delete_all', async (ctx) => {
+    try {
+        await pool.query("DELETE FROM website_covers");
+        await ctx.answerCbQuery('✅ បានលុប Cover ទាំងអស់ចោលជោគជ័យ!');
+        await ctx.editMessageText('✅ **បានសម្អាត និងលុប Cover ទាំងអស់ចោលរួចរាល់ហើយ!**', {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_edit_cover' }]]
+            }
+        });
+    } catch (err) {
+        console.error("Error deleting all covers:", err);
+        await ctx.answerCbQuery('❌ មានបញ្ហាពេលលុប Cover ទាំងអស់', { show_alert: true });
+    }
+});
+
 bot.action(/^del_cover_(\d+)$/, async (ctx) => {
     let coverId = ctx.match[1];
     try {
         let res = await pool.query("SELECT cover_url FROM website_covers WHERE id = $1", [coverId]);
         if (res.rows.length > 0) {
             let coverUrl = res.rows[0].cover_url;
-            
-            // លុប Record ចេញពី Database Website Covers មុន
             await pool.query("DELETE FROM website_covers WHERE id = $1", [coverId]);
 
-            // លុប File ក្នុង Server បើ File នោះមិនមានប្រើប្រាស់លើ Cover ផ្សេង ឬ Products ផ្សេង
             if (coverUrl && coverUrl.includes('/videos/')) {
                 let fileName = coverUrl.split('/videos/').pop().split('?')[0];
                 let filePath = path.join(videoDir, fileName);
