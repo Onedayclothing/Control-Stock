@@ -797,17 +797,32 @@ bot.action(/^del_cover_(\d+)$/, async (ctx) => {
         let res = await pool.query("SELECT cover_url FROM website_covers WHERE id = $1", [coverId]);
         if (res.rows.length > 0) {
             let coverUrl = res.rows[0].cover_url;
+            
+            // លុប Record ចេញពី Database Website Covers មុន
             await pool.query("DELETE FROM website_covers WHERE id = $1", [coverId]);
 
-            if (coverUrl.includes('/videos/')) {
+            // លុប File ក្នុង Server បើ File នោះមិនមានប្រើប្រាស់លើ Cover ផ្សេង ឬ Products ផ្សេង
+            if (coverUrl && coverUrl.includes('/videos/')) {
                 let fileName = coverUrl.split('/videos/').pop().split('?')[0];
                 let filePath = path.join(videoDir, fileName);
-                let inUse = await isMediaInUse(fileName);
-                if (!inUse && fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
+
+                let otherCoverCheck = await pool.query(
+                    "SELECT COUNT(*) FROM website_covers WHERE cover_url LIKE $1",
+                    [`%${fileName}%`]
+                );
+                let otherProdCheck = await pool.query(
+                    "SELECT COUNT(*) FROM products WHERE video_url LIKE $1",
+                    [`%${fileName}%`]
+                );
+
+                if (parseInt(otherCoverCheck.rows[0].count) === 0 && parseInt(otherProdCheck.rows[0].count) === 0) {
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
                 }
             }
         }
+
         await ctx.answerCbQuery('✅ បានលុប Cover ជោគជ័យ!');
         await ctx.editMessageText('✅ បានលុប Cover រួចរាល់!', {
             reply_markup: {
