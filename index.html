@@ -9,13 +9,13 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Oneday Clothing | Premium Collection">
     <meta property="og:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
-    <meta property="og:image" content="videos/cover_placeholder.jpg">
-    <meta property="og:url" content="/">
+    <meta property="og:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
+    <meta property="og:url" content="https://control-stock-production-a855.up.railway.app/">
     <meta property="og:site_name" content="Oneday Clothing">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Oneday Clothing | Premium Collection">
     <meta name="twitter:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
-    <meta name="twitter:image" content="videos/cover_placeholder.jpg">
+    <meta name="twitter:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
     
     <link href="https://fonts.googleapis.com/css2?family=Content:wght@400;700&family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
     
@@ -392,14 +392,14 @@
             <div class="cover-slide-item">
                 <div class="cover-image-box" id="coverBoxContainer">
                     <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
-                        <source src="videos/VID_20260905221119531.mp4" type="video/mp4">
+                        <source src="https://control-stock-production-a855.up.railway.app/videos/VID_20260905221119531.mp4" type="video/mp4">
                     </video>
                 </div>
             </div>
             <div class="cover-slide-item">
                 <div class="cover-image-box">
                     <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
-                        <source src="videos/gemini_generated_video_1CCC7921.mp4" type="video/mp4">
+                        <source src="https://control-stock-production-a855.up.railway.app/videos/gemini_generated_video_1CCC7921.mp4" type="video/mp4">
                     </video>
                 </div>
             </div>
@@ -607,8 +607,11 @@
         const TELEGRAM_USERNAME = "OneDayClothingAgent";
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
-        // 🌐 ប្រើប្រាស់ Dynamic Domain ស្វ័យប្រវត្តិ
-        const RAILWAY_API_URL = window.location.origin;
+        
+        // 🧠 ស្គាល់ dynamic ស្វ័យប្រវត្តិ៖ បើដើរលើ GitHub Pages រត់ទៅ Railway Backend, បើដើរលើ Railway ប្រើ location.origin
+        const RAILWAY_API_URL = window.location.hostname.includes("github.io")
+            ? "https://control-stock-production-a855.up.railway.app"
+            : window.location.origin;
 
         let stockData = {};
         let priceData = {};
@@ -618,7 +621,7 @@
         let currentGender = 'men';
         let currentType = 'all';
 
-        let isOrderPlaced = false; // Flag ការពារពេល Switch App
+        let isOrderPlaced = false;
 
         let currentPage = 1;
         const productsPerPage = 6;
@@ -695,7 +698,6 @@
             }
         };
 
-        // 🛡️ Helper Check: ពិនិត្យមើលថា URL ជាប្រភេទរូបភាព ឬអត់
         function isImageUrl(url) {
             if (!url) return false;
             let cleanUrl = url.toLowerCase();
@@ -708,7 +710,6 @@
                 if (response.ok) {
                     let settings = await response.json();
 
-                    // 🧠 SMART COVER DISPLAY: លៃតម្រូវ Aspect Ratio តាមរូបភាព/វីដេអូដើមស្វ័យប្រវត្តិ
                     if (settings.cover_url) {
                         let coverContainer = document.getElementById('coverBoxContainer');
                         if (coverContainer) {
@@ -859,7 +860,6 @@
                 alert(translations[currentLang].empty_cart);
                 return;
             }
-            // 🔄 ឆែក និង Sync ស្តុកថ្មីៗមុនពេលចូលដល់ Checkout
             await backgroundSyncStock();
             closeModal('cartModal');
             openModal('checkoutModal');
@@ -1216,14 +1216,13 @@
             setInterval(loadWebsiteSettings, 10000);
         });
 
-        // 🛡️ ពេលអតិថិជន Order រួច ត្រឡប់មកកាន់ Website វិញ វានឹងបិទ Modal ទាំងអស់ស្វ័យប្រវត្តិ
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible" && isOrderPlaced) {
                 closeModal('checkoutModal');
                 closeModal('cartModal');
                 closeModal('guideModal');
                 closeModal('mapPickerModal');
-                isOrderPlaced = false; // Reset មកវិញ
+                isOrderPlaced = false;
             }
         });
 
@@ -1496,17 +1495,14 @@
                     message += `• ថ្លៃដឹកជញ្ជូន: ${deliveryFeeText}\n`;
                     message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
 
-                    // 🧹 ១. លុបទំនិញចេញពីកន្ត្រកស្វ័យប្រវត្តិ និង Update Stock លើ Card
                     cart = {};
                     renderCart();
                     updateAllCardStocks();
                     isOrderPlaced = true;
 
-                    // 🔒 ២. បិទផ្ទាំង Modal ទាំងអស់ស្វ័យប្រវត្តិ
                     closeModal('checkoutModal');
                     closeModal('cartModal');
 
-                    // 🚀 ៣. បើកទៅ Telegram
                     window.location.href = `https://t.me/${TELEGRAM_USERNAME}?text=${encodeURIComponent(message)}`;
                 } else {
                     alert(result.message || "មានបញ្ហាពេលកុម្មង់ទំនិញ!");
