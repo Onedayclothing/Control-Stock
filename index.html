@@ -193,14 +193,33 @@
             background-size: 7px auto;
         }
 
+        /* 🧠 SMART RESPONSIVE COVER CONTAINER */
         .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 8px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
         .cover-slider::-webkit-scrollbar { display: none; }
         .cover-slide-item { flex: 0 0 100%; width: 100%; scroll-snap-align: start; }
         
-        .cover-image-box { width: 100%; aspect-ratio: 1260 / 495; background-color: #0f172a; overflow: hidden; position: relative; }
+        .cover-image-box { 
+            width: 100%; 
+            background-color: #0f172a; 
+            overflow: hidden; 
+            position: relative; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
-        .cover-image-box video, .cover-image-box img { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: cover; opacity: 0.9; pointer-events: none; -webkit-touch-callout: none; }
+        .cover-image-box video, .cover-image-box img { 
+            width: 100%; 
+            height: auto; 
+            max-width: 100% !important; 
+            max-height: 80vh; 
+            object-fit: contain; 
+            display: block; 
+            opacity: 0.95; 
+            pointer-events: none; 
+            -webkit-touch-callout: none; 
+        }
 
         .cover-dots { display: flex; justify-content: center; gap: 6px; padding: 4px 0; background: var(--card-bg); }
         .cover-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-color); transition: all 0.3s ease; }
@@ -686,15 +705,15 @@
                 if (response.ok) {
                     let settings = await response.json();
 
-                    // 🖼️/🎬 គាំទ្រទាំង Image និង Video សម្រាប់ Cover Banner
+                    // 🧠 SMART COVER DISPLAY: លៃតម្រូវ Aspect Ratio តាមរូបភាព/វីដេអូដើមស្វ័យប្រវត្តិ
                     if (settings.cover_url) {
                         let coverContainer = document.getElementById('coverBoxContainer');
                         if (coverContainer) {
                             if (isImageUrl(settings.cover_url)) {
-                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:100%; object-fit:cover;">`;
+                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:auto; display:block; object-fit:contain;">`;
                             } else {
                                 coverContainer.innerHTML = `
-                                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" autoplay style="width:100%; height:100%; object-fit:cover;">
+                                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" autoplay style="width:100%; height:auto; display:block; object-fit:contain;">
                                         <source src="${settings.cover_url}" type="video/mp4">
                                     </video>`;
                                 setupVideoObserver();
@@ -993,7 +1012,6 @@
                 let displayTitle = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
                 let displayDesc = currentLang === 'en' ? (prod.desc_en || prod.desc_km) : currentLang === 'zh' ? (prod.desc_zh || prod.desc_km) : (prod.desc_km || '');
 
-                // 🖼️/🎬 គាំទ្រទាំង រូបភាព (Image) និង វីដេអូ (Video) សម្រាប់កាតទំនិញ
                 let mediaUrl = prod.video_url || '';
                 let mediaHtml = '';
                 if (isImageUrl(mediaUrl)) {
