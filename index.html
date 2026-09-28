@@ -673,20 +673,32 @@
             }
         };
 
+        // 🛡️ Helper Check: ពិនិត្យមើលថា URL ជាប្រភេទរូបភាព ឬអត់
+        function isImageUrl(url) {
+            if (!url) return false;
+            let cleanUrl = url.toLowerCase();
+            return cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp');
+        }
+
         async function loadWebsiteSettings() {
             try {
                 let response = await fetch(`${RAILWAY_API_URL}/api/website-settings`);
                 if (response.ok) {
                     let settings = await response.json();
 
+                    // 🖼️/🎬 គាំទ្រទាំង Image និង Video សម្រាប់ Cover Banner
                     if (settings.cover_url) {
-                        let coverVid = document.getElementById('heroCoverVideo');
-                        if (coverVid) {
-                            let source = coverVid.querySelector('source');
-                            if (source) source.src = settings.cover_url;
-                            else coverVid.src = settings.cover_url;
-                            coverVid.load();
-                            coverVid.play().catch(() => {});
+                        let coverContainer = document.getElementById('coverBoxContainer');
+                        if (coverContainer) {
+                            if (isImageUrl(settings.cover_url)) {
+                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:100%; object-fit:cover;">`;
+                            } else {
+                                coverContainer.innerHTML = `
+                                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" autoplay style="width:100%; height:100%; object-fit:cover;">
+                                        <source src="${settings.cover_url}" type="video/mp4">
+                                    </video>`;
+                                setupVideoObserver();
+                            }
                         }
                     }
 
@@ -981,13 +993,23 @@
                 let displayTitle = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
                 let displayDesc = currentLang === 'en' ? (prod.desc_en || prod.desc_km) : currentLang === 'zh' ? (prod.desc_zh || prod.desc_km) : (prod.desc_km || '');
 
+                // 🖼️/🎬 គាំទ្រទាំង រូបភាព (Image) និង វីដេអូ (Video) សម្រាប់កាតទំនិញ
+                let mediaUrl = prod.video_url || '';
+                let mediaHtml = '';
+                if (isImageUrl(mediaUrl)) {
+                    mediaHtml = `<img src="${mediaUrl}" alt="${displayTitle}" loading="lazy" style="width:100%; height:100%; object-fit:cover;">`;
+                } else {
+                    mediaHtml = `
+                        <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                            <source src="${mediaUrl}" type="video/mp4">
+                        </video>`;
+                }
+
                 let cardHtml = `
                     <div class="card" id="prod-${ref}" data-gender="${prod.gender || 'men'}" data-type="${prod.type || 'tops'}">
                         <span class="badge">Ref: ${ref}</span>
                         <div class="img-box">
-                            <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
-                                <source src="${prod.video_url || ''}" type="video/mp4">
-                            </video>
+                            ${mediaHtml}
                         </div>
                         <div>
                             <div class="prod-title">${displayTitle}</div>
