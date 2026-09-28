@@ -415,7 +415,7 @@ app.post('/api/order', async (req, res) => {
                     client.release();
                     return res.json({ 
                         success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size${cleanSize} ដាច់ស្តុក!` 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ដាច់ស្តុក!` 
                     });
                 }
                 let sellPrice = parseFloat(check.rows[0].price);
@@ -437,7 +437,7 @@ app.post('/api/order', async (req, res) => {
             } else {
                 await client.query('ROLLBACK');
                 client.release();
-                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size${cleanSize} ឡើយ!` });
+                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
             }
         }
 
@@ -480,7 +480,7 @@ app.post('/api/order', async (req, res) => {
 
             msg += `\n🛒 **ទំនិញកុម្មង់:**\n`;
             itemsSummary.forEach((it, idx) => {
-                msg += `${idx + 1}. Ref:${it.ref} - ${it.title} (Size:${it.size}) x ${it.qty} =$${Number(it.total).toFixed(2)}\n`;
+                msg += `${idx + 1}. Ref: ${it.ref} - ${it.title} (Size: ${it.size}) x ${it.qty} = $${Number(it.total).toFixed(2)}\n`;
             });
 
             msg += `\n💵 **សរុបទឹកប្រាក់:** $${Number(totalAmount).toFixed(2)}`;
@@ -574,12 +574,12 @@ bot.command('orders', async (ctx) => {
             let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
 
             let msg = `📦 **Order ID: #${order.id}** (Status: PENDING)\n`;
-            msg += `👤 ឈ្មោះ: ${cust?.name \vert{}\vert{} 'អនាមិក'} (${cust?.phone || 'គ្មានលេខ'})\n`;
+            msg += `👤 ឈ្មោះ: ${cust?.name || 'អនាមិក'} (${cust?.phone || 'គ្មានលេខ'})\n`;
             msg += `📍 អាសយដ្ឋាន: ${cust?.address || 'គ្មាន'}\n`;
             msg += `🛒 ទំនិញ:\n`;
             for (let key in items) {
                 let it = items[key];
-                msg += `• Ref ${it.ref} (Size${it.size}) x ${it.qty} =$${Number(it.price * it.qty).toFixed(2)}\n`;
+                msg += `• Ref ${it.ref} (Size ${it.size}) x ${it.qty} = $${Number(it.price * it.qty).toFixed(2)}\n`;
             }
             msg += `💵 សរុប: $${Number(order.total).toFixed(2)}`;
 
@@ -612,7 +612,7 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
         let prod = check.rows[0];
 
         let stockRes = await pool.query("SELECT size, stock_qty FROM stock WHERE UPPER(ref) = $1 ORDER BY size", [cleanRef]);
-        let stockText = stockRes.rows.map(s => `${s.size}:${s.stock_qty}`).join(' | ');
+        let stockText = stockRes.rows.map(s => `${s.size}: ${s.stock_qty}`).join(' | ');
 
         let msg = `🔍 **ព័ត៌មានទំនិញ Ref : ${cleanRef}**\n\n`;
         msg += `• ឈ្មោះ: ${prod.title_km}\n`;
