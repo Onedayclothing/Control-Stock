@@ -17,7 +17,7 @@ if (!fs.existsSync(videoDir)) {
     fs.mkdirSync(videoDir, { recursive: true });
 }
 
-// 🌐 Serve ហ្វាល Static ចេញពី Volume Directory តាម URL /videos
+// 🌐 Serve ហ្វាល Static (រូបភាព/វីដេអូ) ចេញពី Volume Directory តាម URL /videos
 app.use('/videos', express.static(videoDir));
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
@@ -36,7 +36,7 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// 🔒 Telegram Bot Setup (លុប Hardcoded Token ចោលដើម្បីសុវត្ថិភាព)
+// 🔒 Telegram Bot Setup
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
     console.error('⚠️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
@@ -127,9 +127,11 @@ async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
     let linkObj = await ctx.telegram.getFileLink(fileId);
     let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
     
-    // កំណត់ កន្ទុយហ្វាល (.mp4, .jpg, .png, .gif) ស្វ័យប្រវត្តិ
+    // 🎯 ឆែកមើលប្រភេទ extension ឱ្យច្បាស់លាស់ (.jpg, .png, .gif, .mp4)
     let ext = '.mp4';
-    if (fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
+    if (ctx.message && ctx.message.photo && ctx.message.photo.length > 0) {
+        ext = '.jpg';
+    } else if (fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
         ext = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)[0].toLowerCase();
     } else if (fileUrl.match(/\.(mp4|mov|avi|webm)/i)) {
         ext = fileUrl.match(/\.(mp4|mov|avi|webm)/i)[0].toLowerCase();
@@ -288,7 +290,6 @@ app.get('/api/website-settings', async (req, res) => {
     }
 });
 
-// 🚚 API សម្រាប់ទាញយកថ្លៃដឹកជញ្ជូន
 app.get('/api/delivery-fee', async (req, res) => {
     try {
         let result = await pool.query("SELECT value FROM website_settings WHERE key = 'delivery_fee'");
@@ -414,7 +415,7 @@ app.post('/api/order', async (req, res) => {
                     client.release();
                     return res.json({ 
                         success: false, 
-                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size ${cleanSize} ដាច់ស្តុក!` 
+                        message: `សូមអភ័យទោស! ទំនិញ Ref ${cleanRef} Size${cleanSize} ដាច់ស្តុក!` 
                     });
                 }
                 let sellPrice = parseFloat(check.rows[0].price);
@@ -436,7 +437,7 @@ app.post('/api/order', async (req, res) => {
             } else {
                 await client.query('ROLLBACK');
                 client.release();
-                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size ${cleanSize} ឡើយ!` });
+                return res.json({ success: false, message: `រកមិនឃើញទំនិញ Ref ${cleanRef} Size${cleanSize} ឡើយ!` });
             }
         }
 
@@ -479,7 +480,7 @@ app.post('/api/order', async (req, res) => {
 
             msg += `\n🛒 **ទំនិញកុម្មង់:**\n`;
             itemsSummary.forEach((it, idx) => {
-                msg += `${idx + 1}. Ref: ${it.ref} - ${it.title} (Size: ${it.size}) x ${it.qty} = $${Number(it.total).toFixed(2)}\n`;
+                msg += `${idx + 1}. Ref:${it.ref} - ${it.title} (Size:${it.size}) x ${it.qty} =$${Number(it.total).toFixed(2)}\n`;
             });
 
             msg += `\n💵 **សរុបទឹកប្រាក់:** $${Number(totalAmount).toFixed(2)}`;
@@ -527,7 +528,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -573,12 +574,12 @@ bot.command('orders', async (ctx) => {
             let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
 
             let msg = `📦 **Order ID: #${order.id}** (Status: PENDING)\n`;
-            msg += `👤 ឈ្មោះ: ${cust?.name || 'អនាមិក'} (${cust?.phone || 'គ្មានលេខ'})\n`;
+            msg += `👤 ឈ្មោះ: ${cust?.name \vert{}\vert{} 'អនាមិក'} (${cust?.phone || 'គ្មានលេខ'})\n`;
             msg += `📍 អាសយដ្ឋាន: ${cust?.address || 'គ្មាន'}\n`;
             msg += `🛒 ទំនិញ:\n`;
             for (let key in items) {
                 let it = items[key];
-                msg += `• Ref ${it.ref} (Size ${it.size}) x ${it.qty} = $${Number(it.price * it.qty).toFixed(2)}\n`;
+                msg += `• Ref ${it.ref} (Size${it.size}) x ${it.qty} =$${Number(it.price * it.qty).toFixed(2)}\n`;
             }
             msg += `💵 សរុប: $${Number(order.total).toFixed(2)}`;
 
@@ -611,7 +612,7 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
         let prod = check.rows[0];
 
         let stockRes = await pool.query("SELECT size, stock_qty FROM stock WHERE UPPER(ref) = $1 ORDER BY size", [cleanRef]);
-        let stockText = stockRes.rows.map(s => `${s.size}: ${s.stock_qty}`).join(' | ');
+        let stockText = stockRes.rows.map(s => `${s.size}:${s.stock_qty}`).join(' | ');
 
         let msg = `🔍 **ព័ត៌មានទំនិញ Ref : ${cleanRef}**\n\n`;
         msg += `• ឈ្មោះ: ${prod.title_km}\n`;
@@ -1056,7 +1057,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ Command /deleteref ដោយមានការការពារ និងលុប File
+// 🗑️ Command /deleteref
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1112,7 +1113,7 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
-// 🧹 Command /cleanup ដោយមានការការពារ File លើ Website
+// 🧹 Command /cleanup
 bot.command('cleanup', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
