@@ -107,17 +107,23 @@ async function isMediaInUse(fileName) {
         );
         if (parseInt(settingsCheck.rows[0].count) > 0) return true;
 
+        let coverCheck = await pool.query(
+            "SELECT COUNT(*) FROM website_covers WHERE cover_url LIKE $1",
+            [`%${fileName}%`]
+        );
+        if (parseInt(coverCheck.rows[0].count) > 0) return true;
+
         return false;
     } catch (err) {
         console.error("Error checking media usage:", err);
-        return true; // ការពារកុំឱ្យលុបប្រសិនបើមាន Error
+        return true; 
     }
 }
 
 // 🖼️/🎥 Helper Function: ចាប់យក File Object ពីរូបភាព វីដេអូ GIF ឬ Document
 function getTelegramMediaObject(msg) {
     if (msg.photo && msg.photo.length > 0) {
-        return msg.photo[msg.photo.length - 1]; // ចាប់យករូបភាពដែលច្បាស់ជាងគេ
+        return msg.photo[msg.photo.length - 1]; 
     }
     return msg.video || msg.video_note || msg.animation || msg.document || null;
 }
@@ -127,7 +133,6 @@ async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
     let linkObj = await ctx.telegram.getFileLink(fileId);
     let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
     
-    // 🎯 ឆែកមើលប្រភេទ extension ឱ្យច្បាស់លាស់ (.jpg, .png, .gif, .mp4)
     let ext = '.mp4';
     if (ctx.message && ctx.message.photo && ctx.message.photo.length > 0) {
         ext = '.jpg';
@@ -200,6 +205,15 @@ async function initDB() {
             CREATE TABLE IF NOT EXISTS website_settings (
                 key VARCHAR(100) PRIMARY KEY,
                 value TEXT
+            );
+        `);
+
+        // 📦 Table សម្រាប់រក្សាទុក Cover ច្រើន (Multi-Cover Slider)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS website_covers (
+                id SERIAL PRIMARY KEY,
+                cover_url TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
 
@@ -290,6 +304,16 @@ app.get('/api/website-settings', async (req, res) => {
     }
 });
 
+// 🌐 API សម្រាប់ទាញយក Cover ទាំងអស់សម្រាប់ Slider
+app.get('/api/website-covers', async (req, res) => {
+    try {
+        let result = await pool.query("SELECT * FROM website_covers ORDER BY id ASC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/delivery-fee', async (req, res) => {
     try {
         let result = await pool.query("SELECT value FROM website_settings WHERE key = 'delivery_fee'");
@@ -300,7 +324,6 @@ app.get('/api/delivery-fee', async (req, res) => {
     }
 });
 
-// 🛡️ Safe Ordering (មិន Crash ប្រសិនបើ Ref ជាអក្សរ)
 app.get('/api/products', async (req, res) => {
     try {
         const query = `
@@ -318,7 +341,6 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
-// 🛡️ Safe Ordering (មិន Crash ប្រសិនបើ Ref ជាអក្សរ)
 app.get('/api/stock', async (req, res) => {
     try {
         let result = await pool.query("SELECT * FROM stock ORDER BY NULLIF(regexp_replace(ref, '\\D', '', 'g'), '')::NUMERIC ASC NULLS LAST, ref ASC, size");
@@ -537,7 +559,6 @@ bot.start(async (ctx) => {
     ctx.reply('🔐 សូមបញ្ចូល Password ដើម្បីចូលប្រើប្រាស់ប្រព័ន្ធ៖');
 });
 
-// 📊 មុខងារ /stats
 bot.command('stats', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -561,7 +582,6 @@ bot.command('stats', async (ctx) => {
     }
 });
 
-// 📦 មុខងារ /orders
 bot.command('orders', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -599,7 +619,6 @@ bot.command('orders', async (ctx) => {
     }
 });
 
-// 🔍 មុខងារ /search
 bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -630,7 +649,6 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
     }
 });
 
-// 🚚 ពាក្យបញ្ជា /delivery
 bot.command(['delivery', 'Delivery'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -643,7 +661,6 @@ bot.command(['delivery', 'Delivery'], async (ctx) => {
     });
 });
 
-// 🌐 ពាក្យបញ្ជា /website
 bot.command(['website', 'Website'], async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -657,7 +674,7 @@ bot.command(['website', 'Website'], async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
-                [{ text: '🎬 🖼️ កែប្រែ Cover (Video / Image)', callback_data: 'web_edit_cover' }],
+                [{ text: '🎬 🖼️ កែប្រែ Cover Slider (Add/Delete)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
@@ -676,7 +693,9 @@ bot.action('web_view_settings', async (ctx) => {
         let settings = {};
         res.rows.forEach(r => settings[r.key] = r.value);
 
-        let coverUrl = settings.cover_url || 'Default System Media';
+        let coversRes = await pool.query("SELECT COUNT(*) FROM website_covers");
+        let totalCovers = coversRes.rows[0].count;
+
         let logoUrl = settings.logo_url || 'Default Logo Text (Oneday.)';
         let cartIconUrl = settings.cart_icon_url || 'Default Cart Icon';
         let mainTitle = settings.cover_title || 'BUILD YOUR DREAM STYLE';
@@ -685,7 +704,7 @@ bot.action('web_view_settings', async (ctx) => {
         let msg = `👁️ **ការកំណត់បច្ចុប្បន្នលើ Website:**\n\n`;
         msg += `📢 **Banner Title:** ${mainTitle}\n`;
         msg += `🚚 **Delivery Fee:** ${isNaN(deliveryFee) ? deliveryFee : '$' + parseFloat(deliveryFee).toFixed(2)}\n`;
-        msg += `🎬/🖼️ **Cover Media:**\n${coverUrl}\n\n`;
+        msg += `🎬/🖼️ **Total Covers in Slider:** ${totalCovers} ហ្វាល\n\n`;
         msg += `🖼️ **Shop Logo:**\n${logoUrl}\n\n`;
         msg += `🛒 **Cart Icon:**\n${cartIconUrl}`;
 
@@ -709,7 +728,7 @@ bot.action('web_back_menu', async (ctx) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
-                [{ text: '🎬 🖼️ កែប្រែ Cover (Video / Image)', callback_data: 'web_edit_cover' }],
+                [{ text: '🎬 🖼️ កែប្រែ Cover Slider (Add/Delete)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
                 [{ text: '🚚 កែប្រែថ្លៃដឹក (Delivery Fee)', callback_data: 'web_edit_delivery' }],
@@ -719,11 +738,76 @@ bot.action('web_back_menu', async (ctx) => {
     });
 });
 
+// 🎬 Multi-Cover Management Menu
 bot.action('web_edit_cover', async (ctx) => {
-    const chatId = ctx.chat.id;
-    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_COVER' };
     await ctx.answerCbQuery();
-    await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video/GIF Animation** សម្រាប់ដាក់ធ្វើជា Cover Website ថ្មី៖');
+    await ctx.editMessageText('🎬/🖼️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
+                [{ text: '🗑️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
+                [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
+            ]
+        }
+    });
+});
+
+bot.action('web_cover_add', async (ctx) => {
+    const chatId = ctx.chat.id;
+    userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_ADD_COVER' };
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+});
+
+bot.action('web_cover_delete_list', async (ctx) => {
+    try {
+        let res = await pool.query("SELECT * FROM website_covers ORDER BY id ASC");
+        if (res.rows.length === 0) {
+            return ctx.answerCbQuery('⚠️ មិនមាន Cover ក្នុង Slider សម្រាប់លុបទេ!', { show_alert: true });
+        }
+        let inlineKeyboard = [];
+        res.rows.forEach((cov, idx) => {
+            inlineKeyboard.push([{ text: `🗑️ លុប Cover ទី ${idx + 1} (ID: ${cov.id})`, callback_data: `del_cover_${cov.id}` }]);
+        });
+        inlineKeyboard.push([{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_edit_cover' }]);
+
+        await ctx.answerCbQuery();
+        await ctx.editMessageText('🗑️ **សូមជ្រើសរើស Cover ដែលអ្នកចង់លុប៖**', {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard }
+        });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+    }
+});
+
+bot.action(/^del_cover_(\d+)$/, async (ctx) => {
+    let coverId = ctx.match[1];
+    try {
+        let res = await pool.query("SELECT cover_url FROM website_covers WHERE id = $1", [coverId]);
+        if (res.rows.length > 0) {
+            let coverUrl = res.rows[0].cover_url;
+            await pool.query("DELETE FROM website_covers WHERE id = $1", [coverId]);
+
+            if (coverUrl.includes('/videos/')) {
+                let fileName = coverUrl.split('/videos/').pop().split('?')[0];
+                let filePath = path.join(videoDir, fileName);
+                let inUse = await isMediaInUse(fileName);
+                if (!inUse && fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            }
+        }
+        await ctx.answerCbQuery('✅ បានលុប Cover ជោគជ័យ!');
+        await ctx.editMessageText('✅ បានលុប Cover រួចរាល់!', {
+            reply_markup: {
+                inline_keyboard: [[{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_edit_cover' }]]
+            }
+        });
+    } catch (err) {
+        await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
+    }
 });
 
 bot.action('web_edit_icon', async (ctx) => {
@@ -924,7 +1008,6 @@ bot.hears(/^\/un\s*@?([a-zA-Z0-9_]+)/i, async (ctx) => {
     }
 });
 
-// 📦 មុខងារ /add (ប្រាប់ Ref បន្ទាប់ និងតម្រូវឱ្យ Admin វាយ Ref ដោយខ្លួនឯង)
 bot.command('add', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1060,7 +1143,6 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ Command /deleteref (លុបចោលការរំកិលលេខ Ref)
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1075,12 +1157,10 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
 
         let product = check.rows[0];
 
-        // លុបទិន្នន័យចេញពី DB (ដោយមិនរំកិលលេខ Ref ផ្សេងឡើយ)
         await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
         await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
-        // 🛡️ ឆែកមើលថា File កំពុងប្រើប្រាស់កន្លែងផ្សេងទៀតឬអត់ មុនពេលលុបចេញពី Volume Disk
         if (product.video_url && product.video_url.includes('/videos/')) {
             try {
                 let fileName = product.video_url.split('/videos/').pop().split('?')[0];
@@ -1101,7 +1181,6 @@ bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     }
 });
 
-// 🧹 Command /cleanup
 bot.command('cleanup', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1268,14 +1347,13 @@ bot.on('message', async (ctx) => {
     }
 
     let authorized = await isAdminUser(chatId, username);
-    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password。');
+    if (!authorized) return ctx.reply('⛔️ គ្មានសិទ្ធិ! សូមផ្ញើ /start ដើម្បីវាយបញ្ចូល Password។');
 
     if (!userStates[chatId]) return;
     let state = userStates[chatId];
 
     await ctx.sendChatAction('typing');
 
-    // 🎬/🖼️ ដំណើរការកំណត់ Website (/website និង /delivery)
     if (state.action === 'WEBSITE') {
         if (state.step === 'WAITING_TITLE') {
             if (!text.trim()) return ctx.reply('⚠️ សូមផ្ញើសារ/អក្សរឱ្យបានត្រឹមត្រូវ!');
@@ -1304,7 +1382,7 @@ bot.on('message', async (ctx) => {
 
         if (fileObj) {
             if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ។ សូមពង្រួមហ្វាល ឬផ្ញើជា Link (http...) ជំនួសវិញ。');
+                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ。');
             }
             try {
                 uploadedUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'web');
@@ -1317,13 +1395,14 @@ bot.on('message', async (ctx) => {
             return ctx.reply('⚠️ សូម Upload វីដេអូ រូបភាព ឬផ្ញើ Link លីងឱ្យបានត្រឹមត្រូវ!');
         }
 
-        if (state.step === 'WAITING_COVER') {
+        // ➕ បន្ថែម Cover ថ្មីចូល Website Covers Table
+        if (state.step === 'WAITING_ADD_COVER') {
             await pool.query(
-                "INSERT INTO website_settings (key, value) VALUES ('cover_url', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+                "INSERT INTO website_covers (cover_url) VALUES ($1)",
                 [uploadedUrl]
             );
             delete userStates[chatId];
-            return ctx.reply(`✅ **ជោគជ័យ!** Cover Website ថ្មីត្រូវបានអាប់ដេតរួចរាល់៖\n${uploadedUrl}`, { parse_mode: 'Markdown' });
+            return ctx.reply(`✅ **ជោគជ័យ!** Cover ថ្មីត្រូវបានបន្ថែមចូលក្នុង Slider រួចរាល់៖\n${uploadedUrl}`, { parse_mode: 'Markdown' });
         }
 
         if (state.step === 'WAITING_ICON_LOGO') {
@@ -1345,7 +1424,6 @@ bot.on('message', async (ctx) => {
         }
     }
 
-    // ✏️ ដំណើរការ កែប្រែទំនិញ (/change)
     if (state.action === 'CHANGE') {
         if (state.step === 'GET_REF') {
             let cleanRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -1395,7 +1473,6 @@ bot.on('message', async (ctx) => {
                 return ctx.reply('⚠️ សូម Upload Video ឬ រូបភាព (Image) ឱ្យបានត្រឹមត្រូវ!');
             }
 
-            // 🛡️ លុប Media ចាស់ ប្រសិនបើវាគ្មានប្រយោជន៍លើ Web ទៀត
             try {
                 let oldProd = await pool.query("SELECT video_url FROM products WHERE UPPER(ref) = $1", [ref]);
                 if (oldProd.rows.length > 0 && oldProd.rows[0].video_url && oldProd.rows[0].video_url.includes('/videos/')) {
@@ -1419,13 +1496,11 @@ bot.on('message', async (ctx) => {
         return;
     }
 
-    // 📦 ដំណើរការ បន្ថែមទំនិញថ្មី (/add)
     switch (state.step) {
         case 'GET_REF':
             let inputRef = text.replace(/ref:?\s*/i, '').trim().toUpperCase();
             if (!inputRef) return ctx.reply('⚠️ សូមបញ្ចូលលេខ Ref ឱ្យបានត្រឹមត្រូវ!');
             
-            // 🛡️ ពិនិត្យមើលថាតើ Ref នេះមានក្នុង DB រួចហើយឬនៅ (ឆែកស្ទួន)
             let checkDup = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [inputRef]);
             if (checkDup.rows.length > 0) {
                 return ctx.reply(`⚠️ លេខ Ref **${inputRef}** នេះមានក្នុងប្រព័ន្ធរួចហើយ! សូមបញ្ចូលលេខ Ref ផ្សេងទៀត៖`, { parse_mode: 'Markdown' });
@@ -1487,13 +1562,12 @@ bot.on('message', async (ctx) => {
     }
 });
 
-// 📌 កំណត់ បញ្ជីពាក្យបញ្ជា (Command Menu) ស្វ័យប្រវត្តិ
 bot.telegram.setMyCommands([
     { command: 'start', description: 'ចាប់ផ្តើមប្រព័ន្ធ / ផ្ទៀងផ្ទាត់ Password' },
     { command: 'stats', description: 'មើលរបាយការណ៍ និងស្ថិតិសរុប' },
     { command: 'orders', description: 'មើលបញ្ជីកុម្មង់កំពុងរង់ចាំ (Pending Orders)' },
     { command: 'search', description: 'ស្វែងរកទំនិញតាម Ref (ឧ. /search 1)' },
-    { command: 'website', description: 'កែប្រែ Cover (Image/Video), Logo & Banner' },
+    { command: 'website', description: 'កែប្រែ Cover Slider (Add/Delete), Logo & Banner' },
     { command: 'delivery', description: 'កែប្រែថ្លៃដឹក (Delivery Fee ឬ ទូទាត់ជាមួយហាង)' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក (Image/Video)' },
@@ -1506,7 +1580,6 @@ bot.telegram.setMyCommands([
 bot.launch();
 console.log('Telegram Bot started successfully...');
 
-// 🛑 ផ្តាច់ Bot Connection ស្អាតបាតពេល Server Restart / Stop ដើម្បីការពារបញ្ហា 409 Conflict
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
