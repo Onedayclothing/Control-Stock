@@ -193,7 +193,7 @@
             background-size: 7px auto;
         }
 
-        /* 🧠 SMART RESPONSIVE COVER CONTAINER */
+        /* 🧠 SMART RESPONSIVE COVER CONTAINER (Fixed Jitter) */
         .cover-container { width: 100%; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 8px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
         .cover-slider::-webkit-scrollbar { display: none; }
@@ -207,14 +207,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            aspect-ratio: 16/9; /* កំណត់ទំហំថេរការពារການញាក់ពេល Video Load */
         }
         .cover-image-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
         .cover-image-box video, .cover-image-box img { 
             width: 100%; 
-            height: auto; 
-            max-width: 100% !important; 
-            max-height: 80vh; 
-            object-fit: contain; 
+            height: 100%; 
+            object-fit: cover; /* ពេញគែមស្អាត មិនបែកទ្រង់ទ្រាយ */
             display: block; 
             opacity: 0.95; 
             pointer-events: none; 
@@ -233,8 +232,6 @@
             padding: 4px 12px 10px; 
             max-width: 480px; 
             margin: 0 auto; 
-            position: sticky;
-            top: 47px;
             background: var(--bg-color); 
             z-index: 45; 
             transition: background 0.3s;
@@ -391,14 +388,14 @@
         <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()">
             <div class="cover-slide-item">
                 <div class="cover-image-box" id="coverBoxContainer">
-                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                    <video id="heroCoverVideo" autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
                         <source src="https://control-stock-production-a855.up.railway.app/videos/VID_20260905221119531.mp4" type="video/mp4">
                     </video>
                 </div>
             </div>
             <div class="cover-slide-item">
                 <div class="cover-image-box">
-                    <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                    <video autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
                         <source src="https://control-stock-production-a855.up.railway.app/videos/gemini_generated_video_1CCC7921.mp4" type="video/mp4">
                     </video>
                 </div>
@@ -714,13 +711,12 @@
                         let coverContainer = document.getElementById('coverBoxContainer');
                         if (coverContainer) {
                             if (isImageUrl(settings.cover_url)) {
-                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:auto; display:block; object-fit:contain;">`;
+                                coverContainer.innerHTML = `<img src="${settings.cover_url}" alt="Cover Image" style="width:100%; height:100%; display:block; object-fit:cover;">`;
                             } else {
                                 coverContainer.innerHTML = `
-                                    <video id="heroCoverVideo" loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" autoplay style="width:100%; height:auto; display:block; object-fit:contain;">
+                                    <video id="heroCoverVideo" autoplay loop muted playsinline webkit-playsinline preload="auto" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;" style="width:100%; height:100%; display:block; object-fit:cover;">
                                         <source src="${settings.cover_url}" type="video/mp4">
                                     </video>`;
-                                setupVideoObserver();
                             }
                         }
                     }
@@ -751,7 +747,7 @@
         }
 
         function setupVideoObserver() {
-            const videos = document.querySelectorAll('video');
+            const videos = document.querySelectorAll('.card video');
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target;
@@ -1212,8 +1208,9 @@
             await loadDynamicProducts();
             loadUserInfo();
 
-            setInterval(backgroundSyncStock, 5000);
-            setInterval(loadWebsiteSettings, 10000);
+            // 🧠 កែសម្រួលពេលវេលា Sync ឱ្យយូរជាងមុន (៣០វិនាទី និង ១នាទី) ដើម្បីកុំឱ្យ Browser ញាក់ពេល Scroll
+            setInterval(backgroundSyncStock, 30000); 
+            setInterval(loadWebsiteSettings, 60000);  
         });
 
         document.addEventListener("visibilitychange", function() {
