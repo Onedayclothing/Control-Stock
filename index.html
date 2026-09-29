@@ -28,7 +28,7 @@
     <meta property="og:title" content="onedaycambodia | Oneday Clothing - ហាងសម្លៀកបំពាក់ អន់ដេ">
     <meta property="og:description" content="onedaycambodia - Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
     <meta property="og:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
-    <meta property="og:url" content="https://control-stock-production-a855.up.railway.app/">
+    <meta property="og:url" content="https://onedaycambodia.github.io/">
     <meta property="og:site_name" content="Oneday Clothing">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="onedaycambodia | Oneday Clothing">
@@ -700,9 +700,8 @@
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
         
-        const RAILWAY_API_URL = window.location.hostname.includes("github.io")
-            ? "https://control-stock-production-a855.up.railway.app"
-            : window.location.origin;
+        // 🌐 GitHub Pages API Endpoint Connected to Railway
+        const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
 
         let stockData = {};
         let priceData = {};
