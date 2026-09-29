@@ -585,7 +585,7 @@
                 <div class="summary-row">
                     <span class="delivery-fee-label">
                         <img src="images/IMG_5831.png" alt="Delivery Fee" class="delivery-img-icon" loading="lazy">
-                        <span data-key="delivery_label">ថ្លៃដឹក</span>
+                        <span data-key="delivery_label">ថ្លៃដឹក (Delivery Fee)</span>
                     </span>
                     <span id="delivery-fee-display">$2.00</span>
                 </div>
@@ -730,7 +730,7 @@
         const translations = {
             km: {
                 cover_title: "BUILD YOUR DREAM STYLE", cat_men: "បុរស", cat_women: "នារី", cat_tops: "អាវ", cat_pants: "ខោ", cat_outerwear: "អាវក្រៅ", sub_all: "ទាំងអស់",
-                select_size: "SIZE", add_to_cart: "ដាក់ចូលកន្ត្រក", total_label: "តម្លៃសរុប", subtotal_label: "តម្លៃទំនិញ", delivery_label: "ថ្លៃដឹក",
+                select_size: "SIZE", add_to_cart: "ដាក់ចូលកន្ត្រក", total_label: "តម្លៃសរុប", subtotal_label: "តម្លៃទំនិញ", delivery_label: "ថ្លៃដឹក (Delivery Fee)",
                 items_unit: "មុខ", btn_order_now: "Order Now", btn_view_cart: "មើលកន្ត្រក", cart_title: "ទំនិញក្នុងកន្ត្រករបស់អ្នក", empty_cart: "មិនទាន់មានទំនិញក្នុងកន្ត្រកទេ",
                 checkout_title: "ព័ត៌មានសម្រាប់ការកុម្មង់",
                 guide_btn_text: "របៀបកុម្មង់", guide_title: "របៀបកុម្មង់ទំនិញ",
@@ -796,7 +796,7 @@
             },
             zh: {
                 cover_title: "打造您的理想风格", cat_men: "男装", cat_women: "女装", cat_tops: "上衣", cat_pants: "裤子", cat_outerwear: "外套", sub_all: "全部",
-                select_size: "尺码", add_to_cart: "加入购物车", total_label: "总金额", subtotal_label: "商品小计", delivery_label: "配送费",
+                select_size: "尺码", add_to_cart: "加入购物车", total_label: "总金额", subtotal_label: "商品小计", delivery_label: "配送费 (Delivery Fee)",
                 items_unit: "件", btn_order_now: "Order Now", btn_view_cart: "查看购物车", cart_title: "您的购物车", empty_cart: "购物车是空的",
                 checkout_title: "结账信息",
                 guide_btn_text: "如何购买", guide_title: "如何购买",
@@ -978,7 +978,6 @@
                 flagImg.src = langFlags[lang];
             }
 
-            // Translate normal data-key elements
             const elements = document.querySelectorAll('[data-key]');
             elements.forEach(el => {
                 const key = el.getAttribute('data-key');
@@ -987,7 +986,6 @@
                 }
             });
 
-            // Translate placeholder elements
             const placeholders = document.querySelectorAll('[data-placeholder-key]');
             placeholders.forEach(el => {
                 const key = el.getAttribute('data-placeholder-key');
@@ -1202,8 +1200,16 @@
                 let defaultStockText = defaultStock > 0 ? `${defaultStock}${translations[currentLang].in_stock}` : translations[currentLang].out_of_stock;
                 let defaultStockColor = defaultStock > 0 ? "var(--accent)" : "#ef4444";
 
-                let displayTitle = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
-                let displayDesc = currentLang === 'en' ? (prod.desc_en || prod.desc_km) : currentLang === 'zh' ? (prod.desc_zh || prod.desc_km) : (prod.desc_km || '');
+                let displayTitle = prod.title_km;
+                let displayDesc = prod.desc_km || '';
+
+                if (currentLang === 'en') {
+                    displayTitle = prod.title_en || prod.title_km;
+                    displayDesc = prod.desc_en || prod.desc_km || '';
+                } else if (currentLang === 'zh') {
+                    displayTitle = prod.title_zh || prod.title_km;
+                    displayDesc = prod.desc_zh || prod.desc_km || '';
+                }
 
                 let mediaUrl = prod.video_url || '';
                 let mediaHtml = '';
@@ -1444,11 +1450,10 @@
         }
 
         async function addToCart(buttonEl, defaultPrice, cardId, refText, event) {
-            let card = document.getElementById(cardId);
-            let titleEl = card ? card.querySelector('.prod-title') : null;
-            let titleKey = titleEl ? titleEl.innerText : refText;
+            let productObj = productsList.find(p => String(p.ref).trim().toUpperCase() === String(refText).trim().toUpperCase());
+            if (!productObj) return;
 
-            let activeSizeBtn = card ? card.querySelector('.size-btn.active') : null;
+            let activeSizeBtn = document.querySelector(`#${cardId} .size-btn.active`);
             let selectedSize = activeSizeBtn ? activeSizeBtn.innerText : 'M';
             let cleanRef = String(refText).trim().toUpperCase();
             let cleanSize = selectedSize.trim().toUpperCase();
@@ -1470,7 +1475,13 @@
                 cart[stockKey].qty += 1;
                 cart[stockKey].price = activePrice;
             } else {
-                cart[stockKey] = { titleKey, price: activePrice, size: selectedSize, ref: refText, qty: 1 };
+                cart[stockKey] = {
+                    product: productObj, // 🌐 Store full product object for dynamic language switching
+                    price: activePrice,
+                    size: selectedSize,
+                    ref: refText,
+                    qty: 1
+                };
             }
 
             fetchLiveStock(cardId, refText, selectedSize);
@@ -1550,10 +1561,19 @@
                 totalItems += item.qty;
                 subtotalPrice += itemTotal;
 
+                // 🌐 Dynamically get cart item title based on current language
+                let prod = item.product;
+                let displayTitle = prod.title_km;
+                if (currentLang === 'en') {
+                    displayTitle = prod.title_en || prod.title_km;
+                } else if (currentLang === 'zh') {
+                    displayTitle = prod.title_zh || prod.title_km;
+                }
+
                 itemsHtml += `
                     <div class="cart-item">
                         <div>
-                            <div class="item-info">[Ref: ${item.ref}] ${item.titleKey}</div>
+                            <div class="item-info">[Ref: ${item.ref}] ${displayTitle}</div>
                             <div class="item-sub">Size: ${item.size} | $${item.price.toFixed(2)}</div>
                         </div>
                         <div class="qty-controls">
@@ -1631,9 +1651,24 @@
             let userId = tgUser ? tgUser.id : "";
             let username = tgUser ? tgUser.username : "";
 
+            // Format items for Railway order API
+            let formattedCart = {};
+            for (let key in cart) {
+                let item = cart[key];
+                let prod = item.product;
+                let titleKey = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
+                formattedCart[key] = {
+                    titleKey: titleKey,
+                    price: item.price,
+                    size: item.size,
+                    ref: item.ref,
+                    qty: item.qty
+                };
+            }
+
             let orderData = {
                 customer: { name, phone, address, mapUrl, userId, username },
-                items: cart
+                items: formattedCart
             };
 
             try {
@@ -1677,7 +1712,10 @@
                         let itemTotal = item.price * item.qty;
                         subtotalPrice += itemTotal;
                         
-                        message += `${index}. [Ref: ${item.ref}] ${item.titleKey}\n`;
+                        let prod = item.product;
+                        let titleText = currentLang === 'en' ? (prod.title_en || prod.title_km) : currentLang === 'zh' ? (prod.title_zh || prod.title_km) : prod.title_km;
+
+                        message += `${index}. [Ref: ${item.ref}] ${titleText}\n`;
                         message += `    Size: ${item.size} × ${item.qty} — $${itemTotal.toFixed(2)}\n`;
                         index++;
                     }
