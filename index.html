@@ -692,9 +692,8 @@
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
         
-        const RAILWAY_API_URL = window.location.hostname.includes("github.io")
-            ? "https://control-stock-production-a855.up.railway.app"
-            : window.location.origin;
+        // 🌐 บังคับให้เรียกตรงไปยัง Railway API เสมอ เพื่อป้องกันปัญหา CORS/Origin บน Vercel
+        const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
 
         let stockData = {};
         let priceData = {};
