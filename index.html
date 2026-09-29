@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Oneday Clothing | Premium Collection</title>
+    
+    <!-- 🔍 Google Search Console Verification (Must not be removed) -->
+    <meta name="google-site-verification" content="Sa_w2kqWBrNT3mxE2u7mZmJ4LGzl5SmCroLEgZtqHRM" />
+
+    <!-- 🔍 SEO Meta Tags & Keywords for onedaycambodia -->
+    <title>onedaycambodia | Oneday Clothing - ហាងសម្លៀកបំពាក់ អន់ដេ</title>
+    <meta name="description" content="onedaycambodia - Oneday Clothing ហាងលក់សម្លៀកបំពាក់បុរស នារី ទាន់សម័យ គុណភាពខ្ពស់នៅកម្ពុជា។ Simple, Modern, Confident.">
+    <meta name="keywords" content="onedaycambodia, oneday clothing, ហាងលក់សម្លៀកបំពាក់, សម្លៀកបំពាក់ទាន់សម័យ, oneday cambodia shop, oneday clothing cambodia">
+    <meta name="author" content="Oneday Clothing">
 
     <!-- 🔄 បង្ខំឱ្យទាញយកទិន្នន័យថ្មីជានិច្ច មិនឱ្យ Cache ទិន្នន័យចាស់ (Anti-Cache) -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -17,14 +25,14 @@
 
     <!-- 🌐 Open Graph / Social Media Sharing Preview Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Oneday Clothing | Premium Collection">
-    <meta property="og:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
+    <meta property="og:title" content="onedaycambodia | Oneday Clothing - ហាងសម្លៀកបំពាក់ អន់ដេ">
+    <meta property="og:description" content="onedaycambodia - Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
     <meta property="og:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
     <meta property="og:url" content="https://control-stock-production-a855.up.railway.app/">
     <meta property="og:site_name" content="Oneday Clothing">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Oneday Clothing | Premium Collection">
-    <meta name="twitter:description" content="Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
+    <meta name="twitter:title" content="onedaycambodia | Oneday Clothing">
+    <meta name="twitter:description" content="onedaycambodia - Simple · Modern · Confident. ស្វែងរកម៉ូដសម្លៀកបំពាក់ទាន់សម័យ និងគុណភាពខ្ពស់នៅ Oneday Clothing។">
     <meta name="twitter:image" content="https://control-stock-production-a855.up.railway.app/videos/cover_placeholder.jpg">
     
     <link href="https://fonts.googleapis.com/css2?family=Content:wght@400;700&family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1476,7 +1484,7 @@
                 cart[stockKey].price = activePrice;
             } else {
                 cart[stockKey] = {
-                    product: productObj, // 🌐 Store full product object for dynamic language switching
+                    product: productObj,
                     price: activePrice,
                     size: selectedSize,
                     ref: refText,
@@ -1561,7 +1569,6 @@
                 totalItems += item.qty;
                 subtotalPrice += itemTotal;
 
-                // 🌐 Dynamically get cart item title based on current language
                 let prod = item.product;
                 let displayTitle = prod.title_km;
                 if (currentLang === 'en') {
@@ -1651,7 +1658,6 @@
             let userId = tgUser ? tgUser.id : "";
             let username = tgUser ? tgUser.username : "";
 
-            // Format items for Railway order API
             let formattedCart = {};
             for (let key in cart) {
                 let item = cart[key];
