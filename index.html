@@ -692,7 +692,6 @@
         let deliveryFee = 2.00;
         let deliveryFeeText = "$2.00";
         
-        // 🌐 บังคับให้เรียกตรงไปยัง Railway API เสมอ เพื่อป้องกันปัญหา CORS/Origin บน Vercel
         const RAILWAY_API_URL = "https://control-stock-production-a855.up.railway.app";
 
         let stockData = {};
@@ -834,45 +833,56 @@
             return cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp');
         }
 
+        // 🔄 Fetch with Auto-Retry (ដោះស្រាយបញ្ហា Server Railway ភ្ញាក់យឺត)
+        async function fetchWithRetry(url, retries = 3, delay = 2000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    let response = await fetch(url);
+                    if (response.ok) return await response.json();
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(res => setTimeout(res, delay));
+                }
+            }
+            throw new Error("Failed to fetch after retries");
+        }
+
         async function loadDynamicCovers() {
             try {
-                let response = await fetch(`${RAILWAY_API_URL}/api/website-covers`);
-                if (response.ok) {
-                    let covers = await response.json();
-                    let slider = document.getElementById('coverSlider');
-                    let dotsContainer = document.getElementById('coverDots');
-                    
-                    if (covers.length > 0 && slider && dotsContainer) {
-                        let sliderHtml = '';
-                        let dotsHtml = '';
+                let covers = await fetchWithRetry(`${RAILWAY_API_URL}/api/website-covers`, 3, 1500);
+                let slider = document.getElementById('coverSlider');
+                let dotsContainer = document.getElementById('coverDots');
+                
+                if (covers.length > 0 && slider && dotsContainer) {
+                    let sliderHtml = '';
+                    let dotsHtml = '';
 
-                        covers.forEach((cov, idx) => {
-                            let isActiveDot = idx === 0 ? 'active' : '';
-                            dotsHtml += `<div class="cover-dot ${isActiveDot}"></div>`;
+                    covers.forEach((cov, idx) => {
+                        let isActiveDot = idx === 0 ? 'active' : '';
+                        dotsHtml += `<div class="cover-dot ${isActiveDot}"></div>`;
 
-                            if (isImageUrl(cov.cover_url)) {
-                                sliderHtml += `
-                                    <div class="cover-slide-item">
-                                        <div class="cover-image-box">
-                                            <img src="${cov.cover_url}" alt="Cover ${idx + 1}" style="width:100%; height:100%; object-fit:cover; display:block;">
-                                        </div>
-                                    </div>`;
-                            } else {
-                                sliderHtml += `
-                                    <div class="cover-slide-item">
-                                        <div class="cover-image-box">
-                                            <video autoplay loop muted playsinline webkit-playsinline preload="auto" style="width:100%; height:100%; object-fit:cover; display:block;">
-                                                <source src="${cov.cover_url}" type="video/mp4">
-                                            </video>
-                                        </div>
-                                    </div>`;
-                            }
-                        });
+                        if (isImageUrl(cov.cover_url)) {
+                            sliderHtml += `
+                                <div class="cover-slide-item">
+                                    <div class="cover-image-box">
+                                        <img src="${cov.cover_url}" alt="Cover ${idx + 1}" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                    </div>
+                                </div>`;
+                        } else {
+                            sliderHtml += `
+                                <div class="cover-slide-item">
+                                    <div class="cover-image-box">
+                                        <video autoplay loop muted playsinline webkit-playsinline preload="auto" style="width:100%; height:100%; object-fit:cover; display:block;">
+                                            <source src="${cov.cover_url}" type="video/mp4">
+                                        </video>
+                                    </div>
+                                </div>`;
+                        }
+                    });
 
-                        slider.innerHTML = sliderHtml;
-                        dotsContainer.innerHTML = dotsHtml;
-                        startAutoSlide();
-                    }
+                    slider.innerHTML = sliderHtml;
+                    dotsContainer.innerHTML = dotsHtml;
+                    startAutoSlide();
                 }
             } catch (err) {
                 console.error("Error loading dynamic covers:", err);
@@ -897,10 +907,8 @@
 
         async function loadWebsiteSettings() {
             try {
-                let response = await fetch(`${RAILWAY_API_URL}/api/website-settings`);
-                if (response.ok) {
-                    let settings = await response.json();
-
+                let settings = await fetchWithRetry(`${RAILWAY_API_URL}/api/website-settings`, 3, 1500);
+                if (settings) {
                     if (settings.cart_icon_url) {
                         let cartIcons = document.querySelectorAll('.dynamic-cart-icon');
                         cartIcons.forEach(icon => {
@@ -1120,19 +1128,18 @@
 
         async function loadDynamicProducts() {
             try {
-                let response = await fetch(`${RAILWAY_API_URL}/api/products`);
-                productsList = await response.json();
+                productsList = await fetchWithRetry(`${RAILWAY_API_URL}/api/products`, 5, 2000);
                 renderProducts();
             } catch (error) {
                 console.error("Error loading dynamic products:", error);
+                document.getElementById('productContainer').innerHTML = `<div class="empty-msg" style="grid-column: span 4; padding: 40px;">⚠️ កំពុងភ្ជាប់ទៅកាន់ Server... សូម Refresh ម្ដងទៀត។</div>`;
             }
         }
 
         async function backgroundSyncStock() {
             try {
-                let response = await fetch(`${RAILWAY_API_URL}/api/products`);
-                if (response.ok) {
-                    let freshProducts = await response.json();
+                let freshProducts = await fetchWithRetry(`${RAILWAY_API_URL}/api/products`, 3, 1500);
+                if (freshProducts) {
                     productsList = freshProducts;
                     
                     productsList.forEach(prod => {
@@ -1216,7 +1223,7 @@
                     mediaHtml = `<img src="${mediaUrl}" alt="${displayTitle}" loading="lazy" style="width:100%; height:100%; object-fit:cover;">`;
                 } else {
                     mediaHtml = `
-                        <video loop muted playsinline webkit-playsinline preload="none" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
+                        <video loop muted playsinline webkit-playsinline preload="metadata" controlslist="nodownload" disablepictureinpicture oncontextmenu="return false;">
                             <source src="${mediaUrl}" type="video/mp4">
                         </video>`;
                 }
@@ -1475,7 +1482,7 @@
                 cart[stockKey].price = activePrice;
             } else {
                 cart[stockKey] = {
-                    product: productObj, // 🌐 Store full product object for dynamic language switching
+                    product: productObj,
                     price: activePrice,
                     size: selectedSize,
                     ref: refText,
@@ -1560,7 +1567,6 @@
                 totalItems += item.qty;
                 subtotalPrice += itemTotal;
 
-                // 🌐 Dynamically get cart item title based on current language
                 let prod = item.product;
                 let displayTitle = prod.title_km;
                 if (currentLang === 'en') {
@@ -1650,7 +1656,6 @@
             let userId = tgUser ? tgUser.id : "";
             let username = tgUser ? tgUser.username : "";
 
-            // Format items for Railway order API
             let formattedCart = {};
             for (let key in cart) {
                 let item = cart[key];
