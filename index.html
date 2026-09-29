@@ -420,17 +420,17 @@
         .modal-title { font-size: 16px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 6px; }
         .btn-close { background: var(--accent-light); border: none; font-size: 14px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: var(--text-muted); }
 
-        /* 🎬 Video / 3D Popup Modal Styles (តូចល្មមស្អាត និងមិន Crop វីដេអូ) */
+        /* 🎬 3D Video Popup Modal Styles (បង្កើនគុណភាពវីដេអូឱ្យច្បាស់ល្អឥតខ្ចោះ) */
         .model-3d-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.85);
+            background: rgba(15, 23, 42, 0.9);
             z-index: 500;
             display: none;
             align-items: center;
             justify-content: center;
             padding: 20px;
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(8px);
         }
         .model-3d-overlay.active {
             display: flex;
@@ -439,23 +439,26 @@
             background: var(--card-bg);
             width: 100%;
             max-width: 360px;
-            max-height: 80vh;
+            max-height: 82vh;
             border-radius: 16px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             border: 1px solid var(--border-color);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
             position: relative;
             background-color: #000;
         }
         .model-3d-container video {
             width: 100%;
             height: auto;
-            max-height: 80vh;
+            max-height: 82vh;
             object-fit: contain;
             display: block;
             margin: auto;
+            image-rendering: -webkit-optimize-contrast; /* បង្កើនភាពច្បាស់ដាច់រវាងពណ៌ */
+            transform: translateZ(0); /* បង្ខំឱ្យប្រើ GPU Hardware Acceleration ជួយឱ្យរលូននិងច្បាស់ */
+            -webkit-backface-visibility: hidden;
         }
 
         #cart-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; max-height: 260px; }
@@ -751,11 +754,11 @@
         </div>
     </div>
 
-    <!-- 🧊 3D Video Popup Modal -->
+    <!-- 🧊 3D Video Popup Modal (បង្កើនកម្រិតច្បាស់ល្អស្អាត) -->
     <div class="model-3d-overlay" id="videoPopupModal" onclick="handleModalClick(event, 'videoPopupModal')">
         <div class="model-3d-container">
-            <button class="btn-close" onclick="closeModal('videoPopupModal')" style="position: absolute; top: 12px; right: 12px; z-index: 20; background: rgba(0,0,0,0.6); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer;">✕</button>
-            <video id="popupVideoPlayer" autoplay loop muted playsinline webkit-playsinline>
+            <button class="btn-close" onclick="closeModal('videoPopupModal')" style="position: absolute; top: 12px; right: 12px; z-index: 20; background: rgba(0,0,0,0.7); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer;">✕</button>
+            <video id="popupVideoPlayer" autoplay loop muted playsinline webkit-playsinline preload="auto">
                 <source src="" type="video/mp4">
             </video>
         </div>
