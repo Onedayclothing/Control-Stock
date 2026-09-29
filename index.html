@@ -616,23 +616,23 @@
             <div class="checkout-form active">
                 <div class="form-group">
                     <label class="form-label" data-key="label_name">ឈ្មោះរបស់អ្នក (Name)</label>
-                    <input type="text" id="custName" class="form-input" placeholder="បំពេញឈ្មោះ..." oninput="clearError(this); saveUserInfo();">
+                    <input type="text" id="custName" class="form-input" data-placeholder-key="placeholder_name" placeholder="បំពេញឈ្មោះ..." oninput="clearError(this); saveUserInfo();">
                 </div>
                 <div class="form-group">
                     <label class="form-label" data-key="label_phone">លេខទូរស័ព្ទ (Phone Number)</label>
-                    <input type="tel" id="custPhone" class="form-input" placeholder="បំពេញលេខទូរស័ព្ទ (ឧ. 012345678)..." oninput="clearError(this); saveUserInfo();">
+                    <input type="tel" id="custPhone" class="form-input" data-placeholder-key="placeholder_phone" placeholder="បំពេញលេខទូរស័ព្ទ (ឧ. 012345678)..." oninput="clearError(this); saveUserInfo();">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label" data-key="label_address">ទីតាំងទទួលទំនិញ (Delivery Location)</label>
-                    <input type="text" id="custAddress" class="form-input" placeholder="បំពេញអាសយដ្ឋាន (ឧ. ផ្ទះ..., ផ្លូវ...)" oninput="clearError(this); saveUserInfo();">
+                    <input type="text" id="custAddress" class="form-input" data-placeholder-key="placeholder_address" placeholder="បំពេញអាសយដ្ឋាន (ឧ. ផ្ទះ..., ផ្លូវ...)" oninput="clearError(this); saveUserInfo();">
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">ទីតាំងលើ Map (Optional)</label>
+                    <label class="form-label" data-key="label_map">ទីតាំងលើ Map (Optional)</label>
                     <div style="display: flex; gap: 6px;">
-                        <input type="text" id="custMapUrl" class="form-input" placeholder="ជ្រើសរើសទីតាំងលើ Map (បើមាន)..." readonly style="cursor: pointer;" onclick="openMapModal()">
-                        <button type="button" onclick="openMapModal()" style="background: var(--accent-light); color: var(--accent); border: 1px solid var(--border-color); padding: 0 10px; border-radius: 10px; font-weight:800; font-size:11px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:4px;">
+                        <input type="text" id="custMapUrl" class="form-input" data-placeholder-key="placeholder_map" placeholder="ជ្រើសរើសទីតាំងលើ Map (បើមាន)..." readonly style="cursor: pointer;" onclick="openMapModal()">
+                        <button type="button" onclick="openMapModal()" style="background: var(--accent-light); color: var(--accent); border: 1px solid var(--border-color); padding: 0 10px; border-radius: 10px; font-weight:800; font-size:11px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:4px;" data-key="btn_select_map">
                             🗺️ Select Map
                         </button>
                     </div>
@@ -660,7 +660,7 @@
         <div class="modal-content" style="height: 85vh; padding: 16px; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <div class="modal-title">
-                    <span>📍 សុំជ្រើសរើសទីតាំងទទួលទំនិញ</span>
+                    <span data-key="map_picker_title">📍 សុំជ្រើសរើសទីតាំងទទួលទំនិញ</span>
                 </div>
                 <button class="btn-close" onclick="closeModal('mapPickerModal')">✕</button>
             </div>
@@ -674,7 +674,7 @@
             </div>
 
             <div style="margin-top: 12px;">
-                <button onclick="confirmFreeLocation()" class="btn-modal-telegram">
+                <button onclick="confirmFreeLocation()" class="btn-modal-telegram" data-key="btn_confirm_location">
                     បញ្ជាក់ទីតាំងនេះ
                 </button>
             </div>
@@ -738,7 +738,9 @@
                 guide_step2: "២. ចុចលើរូបកន្ត្រក ឬប៊ូតុង \"មើលកន្ត្រក\" ដើម្បីត្រួតពិនិត្យទំនិញដែលបានជ្រើសរើស។",
                 guide_step3: "៣. ចុចប៊ូតុង \"Order Now\" រួចបំពេញ ឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងរបស់អ្នក។",
                 guide_step4: "៤. ចុចបញ្ជូនសារទៅកាន់ Telegram ហាងជាការស្រេច!",
-                label_name: "ឈ្មោះរបស់អ្នក (Name)", label_phone: "លេខទូរស័ព្ទ (Phone Number)", label_address: "ទីតាំងទទួលទំនិញ (Delivery Location)",
+                label_name: "ឈ្មោះរបស់អ្នក (Name)", label_phone: "លេខទូរស័ព្ទ (Phone Number)", label_address: "ទីតាំងទទួលទំនិញ (Delivery Location)", label_map: "ទីតាំងលើ Map (Optional)",
+                placeholder_name: "បំពេញឈ្មោះ...", placeholder_phone: "បំពេញលេខទូរស័ព្ទ (ឧ. 012345678)...", placeholder_address: "បំពេញអាសយដ្ឋាន (ឧ. ផ្ទះ..., ផ្លូវ...)", placeholder_map: "ជ្រើសរើសទីតាំងលើ Map (បើមាន)...",
+                btn_select_map: "🗺️ Select Map", map_picker_title: "📍 សុំជ្រើសរើសទីតាំងទទួលទំនិញ", btn_confirm_location: "បញ្ជាក់ទីតាំងនេះ",
                 alert_fill: "សូមបំពេញឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងឱ្យបានត្រឹមត្រូវ!",
                 alert_phone_invalid: "សូមបញ្ចូលលេខទូរស័ព្ទឱ្យបានត្រឹមត្រូវ (យ៉ាងតិច 8ខ្ទង់)!",
                 toast_added: "បានដាក់ចូលកន្ត្រកជោគជ័យ!",
@@ -769,7 +771,9 @@
                 guide_step2: "2. Click the cart icon or \"View Cart\" button to review your items.",
                 guide_step3: "3. Click \"Order Now\" and fill in your name, phone number, and location.",
                 guide_step4: "4. Send the order message directly to our Telegram!",
-                label_name: "Your Name", label_phone: "Phone Number", label_address: "Delivery Location",
+                label_name: "Your Name", label_phone: "Phone Number", label_address: "Delivery Location", label_map: "Map Location (Optional)",
+                placeholder_name: "Enter your name...", placeholder_phone: "Enter phone number (e.g. 012345678)...", placeholder_address: "Enter address (e.g. House..., Street...)", placeholder_map: "Select location on map (Optional)...",
+                btn_select_map: "🗺️ Select Map", map_picker_title: "📍 Select Delivery Location", btn_confirm_location: "Confirm Location",
                 alert_fill: "Please fill in your name, phone number, and location!",
                 alert_phone_invalid: "Please enter a valid phone number (at least 8 digits)!",
                 toast_added: "Added to cart successfully!",
@@ -800,7 +804,9 @@
                 guide_step2: "2. 点击购物车图标或“查看购物车”按钮检查所选商品。",
                 guide_step3: "3. 点击“Order Now”并填写您的姓名、电话和地址。",
                 guide_step4: "4. 将订单发送至我们的电报客服即可！",
-                label_name: "您的姓名", label_phone: "联系电话", label_address: "收货地址",
+                label_name: "您的姓名", label_phone: "联系电话", label_address: "收货地址", label_map: "地图定位 (Optional)",
+                placeholder_name: "请输入您的姓名...", placeholder_phone: "请输入电话号码 (例如 012345678)...", placeholder_address: "请输入收货地址...", placeholder_map: "在地图上选择位置 (可选)...",
+                btn_select_map: "🗺️ 选择地图", map_picker_title: "📍 选择收货地址", btn_confirm_location: "确认此位置",
                 alert_fill: "请填写您的姓名、电话和收货地址！",
                 alert_phone_invalid: "请输入有效的电话号码（至少8位数）！",
                 toast_added: "已成功加入购物车！",
@@ -972,11 +978,21 @@
                 flagImg.src = langFlags[lang];
             }
 
+            // Translate normal data-key elements
             const elements = document.querySelectorAll('[data-key]');
             elements.forEach(el => {
                 const key = el.getAttribute('data-key');
                 if (translations[lang] && translations[lang][key]) {
                     el.innerText = translations[lang][key];
+                }
+            });
+
+            // Translate placeholder elements
+            const placeholders = document.querySelectorAll('[data-placeholder-key]');
+            placeholders.forEach(el => {
+                const key = el.getAttribute('data-placeholder-key');
+                if (translations[lang] && translations[lang][key]) {
+                    el.placeholder = translations[lang][key];
                 }
             });
 
