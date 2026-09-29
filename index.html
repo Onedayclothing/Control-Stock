@@ -266,6 +266,7 @@
             display: grid; 
             grid-template-columns: repeat(2, 1fr); 
             gap: 12px; 
+            min-height: 300px; /* 🛡️ Fix layout jump */
         }
         @media (min-width: 768px) {
             .container {
@@ -276,6 +277,36 @@
 
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 12px; position: relative; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02); }
         
+        /* 🦴 Skeleton Loading Placeholder Styles */
+        .skeleton-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        .skeleton-img {
+            background: var(--border-color);
+            aspect-ratio: 9/16;
+            border-radius: 12px;
+            width: 100%;
+        }
+        .skeleton-line {
+            background: var(--border-color);
+            height: 12px;
+            border-radius: 6px;
+            width: 80%;
+        }
+        .skeleton-line.short { width: 40%; }
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
         .img-box { background: var(--input-bg); aspect-ratio: 9/16; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border-color); position: relative; }
         .img-box::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; background: transparent; }
         .img-box img, .img-box video { width: 100%; height: 100%; max-width: 100% !important; max-height: 100% !important; object-fit: contain; pointer-events: none; -webkit-touch-callout: none; }
@@ -454,7 +485,7 @@
         </div>
     </nav>
 
-    <!-- 🧠 Dynamic Cover Container with Slider & Auto-Slide (Clean UI without arrow buttons) -->
+    <!-- 🧠 Dynamic Cover Container with Slider & Auto-Slide -->
     <div class="cover-container">
         <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()"></div>
         <div class="cover-dots" id="coverDots"></div>
@@ -485,8 +516,14 @@
         </div>
     </div>
 
-    <!-- Dynamic Container for Products -->
-    <div class="container" id="productContainer"></div>
+    <!-- Dynamic Container for Products with Skeleton Loading -->
+    <div class="container" id="productContainer">
+        <!-- Skeleton Skeletons for smooth initial load -->
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+        <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+    </div>
 
     <!-- Pagination Buttons Container -->
     <div id="paginationContainer" style="display: flex; justify-content: center; align-items: center; gap: 6px; margin: 20px 0; flex-wrap: wrap;"></div>
@@ -1627,14 +1664,14 @@
                     let grandTotal = subtotalPrice + deliveryFee;
 
                     message += `\n${t.tg_summary}\n`;
-                    message += `${t.tg_subtotal}$${subtotalPrice.toFixed(2)}\n`;
+                    message += `${t.tg_subtotal}${subtotalPrice.toFixed(2)}\n`;
                     message += `${t.tg_delivery}${deliveryFeeText}\n`;
                     message += `${t.tg_grandtotal}$${grandTotal.toFixed(2)}\n\n`;
 
                     cart = {};
                     renderCart();
                     updateAllCardStocks();
-                    isOrderPlaced = true;
+                    isOrder_placed = true;
 
                     closeModal('checkoutModal');
                     closeModal('cartModal');
