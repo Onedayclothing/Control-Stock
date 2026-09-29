@@ -10,7 +10,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <!-- 📱 Apple Touch Icon & Favicon (App Icon ពេល Add to Home Screen និងនៅលើ Browser Tab) -->
+    <!-- 📱 Apple Touch Icon & Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="images/oneday_clothing_logo_180x180.png">
     <link rel="icon" type="image/png" sizes="32x32" href="images/oneday_clothing_logo_180x180.png">
     <link rel="icon" type="image/png" sizes="16x16" href="images/oneday_clothing_logo_180x180.png">
@@ -77,7 +77,7 @@
             -webkit-tap-highlight-color: transparent; 
         }
 
-        body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 90px; transition: background-color 0.3s, color 0.3s; }
+        body { background-color: var(--bg-color); color: var(--primary); padding-bottom: 100px; transition: background-color 0.3s, color 0.3s; }
 
         img { max-width: 100%; }
 
@@ -98,10 +98,10 @@
         .nav-icon-img,
         .modal-title-img,
         .dynamic-cart-icon {
-            max-width: 18px !important;
-            max-height: 18px !important;
-            width: 18px !important;
-            height: 18px !important;
+            max-width: 16px !important;
+            max-height: 16px !important;
+            width: 16px !important;
+            height: 16px !important;
             object-fit: contain !important;
             vertical-align: middle;
             display: inline-block;
@@ -129,7 +129,7 @@
             transition: background 0.3s; 
         }
 
-        /* 🎨 Logo Branding (Light & Dark Mode Adaptive) */
+        /* 🎨 Logo Branding */
         .logo { 
             font-size: 18px; 
             font-weight: 800; 
@@ -258,7 +258,7 @@
         .sub-btn { background: var(--card-bg); border: 1px solid var(--border-color); padding: 6px 14px; border-radius: 14px; font-size: 11px; font-weight: 600; font-family: var(--nav-font); white-space: nowrap; cursor: pointer; color: var(--text-muted); }
         .sub-btn.active { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
 
-        /* 📱 PC / Laptop: 4 ជួរ (4 Columns) | Mobile: 2 ជួរ (2 Columns) */
+        /* 📱 PC / Laptop: 4 Columns | Mobile: 2 Columns */
         .container { 
             max-width: 1200px; 
             margin: 0 auto; 
@@ -300,7 +300,7 @@
         .btn-add { width: 100%; background: var(--primary); color: var(--bg-color); border: none; padding: 10px; border-radius: 8px; font-weight: 700; font-size: 11px; cursor: pointer; transition: background 0.2s; }
         .btn-add:active { background: var(--accent); }
 
-        /* 🛡️ Clean & Elevated Cart Checkout Bar */
+        /* 🛡️ Clean, Elevated & Perfectly Spaced Cart Checkout Bar */
         .cart-checkout-bar { 
             position: fixed; 
             bottom: 0; 
@@ -311,16 +311,44 @@
             -webkit-backdrop-filter: blur(12px);
             border-top: 1px solid var(--border-color); 
             padding: 10px 16px; 
-            padding-bottom: calc(12px + env(safe-area-inset-bottom)); 
+            padding-bottom: calc(16px + env(safe-area-inset-bottom)); /* ⬆️ ងើបផុតពីគែមបាតទូរស័ព្ទស្អាតល្អ */
             z-index: 100; 
             box-shadow: 0 -4px 20px rgba(0,0,0,0.06); 
         }
         .bar-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-        .total-price { font-size: 18px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 4px; }
-        .total-label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
-        .bar-buttons { display: flex; gap: 8px; }
-        .btn-cart-view { background: var(--accent-light); color: var(--primary); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 10px; font-weight: 800; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-        .btn-telegram { background: var(--accent); color: white; border: none; padding: 8px 14px; border-radius: 10px; font-weight: 800; font-size: 11px; cursor: pointer; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); display: flex; align-items: center; gap: 4px; }
+        .total-price { font-size: 16px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 4px; }
+        .total-label { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; }
+        .bar-buttons { display: flex; gap: 6px; }
+        
+        .btn-cart-view { 
+            background: var(--accent-light); 
+            color: var(--primary); 
+            border: 1px solid var(--border-color); 
+            padding: 7px 10px; 
+            border-radius: 9px; 
+            font-weight: 800; 
+            font-size: 11px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 4px; 
+            white-space: nowrap;
+        }
+        .btn-telegram { 
+            background: var(--accent); 
+            color: white; 
+            border: none; 
+            padding: 7px 12px; 
+            border-radius: 9px; 
+            font-weight: 800; 
+            font-size: 11px; 
+            cursor: pointer; 
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); 
+            display: flex; 
+            align-items: center; 
+            gap: 4px; 
+            white-space: nowrap;
+        }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); z-index: 200; display: none; justify-content: flex-end; flex-direction: column; backdrop-filter: blur(4px); pointer-events: none; opacity: 0; transition: opacity 0.2s ease; }
         .modal-overlay.active { display: flex; pointer-events: auto; opacity: 1; }
@@ -360,7 +388,7 @@
 
         .toast-notification {
             position: fixed;
-            bottom: 75px;
+            bottom: 80px;
             left: 50%;
             transform: translateX(-50%) translateY(100px);
             background: rgba(15, 23, 42, 0.9);
@@ -428,17 +456,13 @@
 
     <!-- 🧠 Dynamic Cover Container with Slider, Auto-Slide & Nav Buttons -->
     <div class="cover-container" style="position: relative;">
-        <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()">
-            <!-- Covers will be injected dynamically via API -->
-        </div>
+        <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()"></div>
 
         <!-- ⬅️➡️ Left / Right Navigation Buttons -->
         <button onclick="scrollCover(-1)" style="position: absolute; left: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">‹</button>
         <button onclick="scrollCover(1)" style="position: absolute; right: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">›</button>
 
-        <div class="cover-dots" id="coverDots">
-            <!-- Dots will be generated dynamically -->
-        </div>
+        <div class="cover-dots" id="coverDots"></div>
         <div class="cover-info">
             <div class="sub-title">Simple · Modern · Confident</div>
             <div class="main-title" data-key="cover_title">BUILD YOUR DREAM STYLE</div>
@@ -467,9 +491,7 @@
     </div>
 
     <!-- Dynamic Container for Products -->
-    <div class="container" id="productContainer">
-        <!-- ទំនិញនឹងត្រូវទាញយកមកបង្ហាញទីនេះស្វ័យប្រវត្តិតាមរយៈ JavaScript API -->
-    </div>
+    <div class="container" id="productContainer"></div>
 
     <!-- Pagination Buttons Container -->
     <div id="paginationContainer" style="display: flex; justify-content: center; align-items: center; gap: 6px; margin: 20px 0; flex-wrap: wrap;"></div>
