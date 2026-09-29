@@ -266,7 +266,7 @@
             display: grid; 
             grid-template-columns: repeat(2, 1fr); 
             gap: 12px; 
-            min-height: 300px; /* 🛡️ Fix layout jump */
+            min-height: 300px; 
         }
         @media (min-width: 768px) {
             .container {
@@ -518,7 +518,6 @@
 
     <!-- Dynamic Container for Products with Skeleton Loading -->
     <div class="container" id="productContainer">
-        <!-- Skeleton Skeletons for smooth initial load -->
         <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
         <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
         <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
@@ -746,6 +745,7 @@
                 stock_remaining: "ស្តុកនៅសល់: ",
                 in_stock: " (មានក្នុងស្តុក)",
                 out_of_stock: "អស់ស្តុក (Out of stock)",
+                alert_stock_exceeded: (ref, size, stock) => `សូមអភ័យទោស! ទំនិញនេះ (Ref: ${ref} - Size ${size}) ទិញបានតែ ${stock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${stock}។`,
                 tg_title: "🛍️ Oneday Clothing — New Order",
                 tg_customer: "👤 ព័ត៌មានអតិថិជន",
                 tg_name: "• ឈ្មោះ: ",
@@ -776,6 +776,7 @@
                 stock_remaining: "Stock remaining: ",
                 in_stock: " (In stock)",
                 out_of_stock: "Out of stock",
+                alert_stock_exceeded: (ref, size, stock) => `Sorry! This item (Ref: ${ref} - Size ${size}) can only be purchased up to ${stock} items due to stock limits.`,
                 tg_title: "🛍️ Oneday Clothing — New Order",
                 tg_customer: "👤 Customer Information",
                 tg_name: "• Name: ",
@@ -806,6 +807,7 @@
                 stock_remaining: "剩余库存: ",
                 in_stock: " (有货)",
                 out_of_stock: "缺货 (Out of stock)",
+                alert_stock_exceeded: (ref, size, stock) => `很抱歉！该商品 (Ref: ${ref} - Size ${size}) 库存仅剩 ${stock} 件。`,
                 tg_title: "🛍️ Oneday Clothing — 新订单",
                 tg_customer: "👤 客户信息",
                 tg_name: "• 姓名: ",
@@ -1440,7 +1442,7 @@
             let currentQtyInCart = cart[stockKey] ? cart[stockKey].qty : 0;
 
             if (totalStock === 0 || (currentQtyInCart + 1) > totalStock) {
-                alert(`សូមអភ័យទោស! ទំនិញនេះ (Ref: ${refText} - Size ${selectedSize}) ទិញបានតែ ${totalStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${totalStock}។`);
+                alert(translations[currentLang].alert_stock_exceeded(refText, selectedSize, totalStock));
                 return;
             }
 
@@ -1467,7 +1469,10 @@
                 let availableStock = stockData[itemKey] !== undefined ? stockData[itemKey] : 0;
 
                 if (delta > 0 && newQty > availableStock) {
-                    alert(`សូមអភ័យទោស! ទំនិញនេះទិញបានតែ ${availableStock} ប៉ុណ្ណោះ ព្រោះក្នុងស្តុកមានតែ ${availableStock}។`);
+                    let parts = itemKey.split('_');
+                    let refVal = parts[0];
+                    let sizeVal = parts[1];
+                    alert(translations[currentLang].alert_stock_exceeded(refVal, sizeVal, availableStock));
                     return;
                 }
 
@@ -1664,14 +1669,14 @@
                     let grandTotal = subtotalPrice + deliveryFee;
 
                     message += `\n${t.tg_summary}\n`;
-                    message += `${t.tg_subtotal}${subtotalPrice.toFixed(2)}\n`;
+                    message += `${t.tg_subtotal}$${subtotalPrice.toFixed(2)}\n`;
                     message += `${t.tg_delivery}${deliveryFeeText}\n`;
                     message += `${t.tg_grandtotal}$${grandTotal.toFixed(2)}\n\n`;
 
                     cart = {};
                     renderCart();
                     updateAllCardStocks();
-                    isOrder_placed = true;
+                    isOrderPlaced = true;
 
                     closeModal('checkoutModal');
                     closeModal('cartModal');
