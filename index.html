@@ -1723,9 +1723,9 @@
                     let grandTotal = subtotalPrice + deliveryFee;
 
                     message += `\n${t.tg_summary}\n`;
-                    message += `${t.tg_subtotal}$${subtotalPrice.toFixed(2)}\n`;
+                    message += `${t.tg_subtotal}${subtotalPrice.toFixed(2)}\n`;
                     message += `${t.tg_delivery}${deliveryFeeText}\n`;
-                    message += `${t.tg_grandtotal}$${grandTotal.toFixed(2)}\n\n`;
+                    message += `${t.tg_grandtotal}${grandTotal.toFixed(2)}\n\n`;
 
                     cart = {};
                     renderCart();
