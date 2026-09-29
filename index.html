@@ -311,7 +311,7 @@
             -webkit-backdrop-filter: blur(12px);
             border-top: 1px solid var(--border-color); 
             padding: 10px 16px; 
-            padding-bottom: calc(16px + env(safe-area-inset-bottom)); /* ⬆️ ងើបផុតពីគែមបាតទូរស័ព្ទស្អាតល្អ */
+            padding-bottom: calc(16px + env(safe-area-inset-bottom)); 
             z-index: 100; 
             box-shadow: 0 -4px 20px rgba(0,0,0,0.06); 
         }
@@ -713,7 +713,20 @@
                 toast_added: "បានដាក់ចូលកន្ត្រកជោគជ័យ!",
                 stock_remaining: "ស្តុកនៅសល់: ",
                 in_stock: " (មានក្នុងស្តុក)",
-                out_of_stock: "អស់ស្តុក (Out of stock)"
+                out_of_stock: "អស់ស្តុក (Out of stock)",
+                // Telegram Message Translations (KH)
+                tg_title: "🛍️ Oneday Clothing — New Order",
+                tg_customer: "👤 ព័ត៌មានអតិថិជន",
+                tg_name: "• ឈ្មោះ: ",
+                tg_phone: "• លេខទូរស័ព្ទ: ",
+                tg_address: "• អាសយដ្ឋាន: ",
+                tg_map: "• ទីតាំង Map: ",
+                tg_gmap: "• Link Google Maps: ",
+                tg_items: "📦 ទំនិញដែលបានកុម្មង់",
+                tg_summary: "💰 សរុប",
+                tg_subtotal: "• តម្លៃទំនិញ: ",
+                tg_delivery: "• ថ្លៃដឹកជញ្ជូន: ",
+                tg_grandtotal: "• សរុបទាំងអស់: "
             },
             en: {
                 cover_title: "BUILD YOUR DREAM STYLE", cat_men: "Men", cat_women: "Women", cat_tops: "Tops", cat_pants: "Pants", cat_outerwear: "Outerwear", sub_all: "All",
@@ -731,7 +744,20 @@
                 toast_added: "Added to cart successfully!",
                 stock_remaining: "Stock remaining: ",
                 in_stock: " (In stock)",
-                out_of_stock: "Out of stock"
+                out_of_stock: "Out of stock",
+                // Telegram Message Translations (EN)
+                tg_title: "🛍️ Oneday Clothing — New Order",
+                tg_customer: "👤 Customer Information",
+                tg_name: "• Name: ",
+                tg_phone: "• Phone: ",
+                tg_address: "• Address: ",
+                tg_map: "• Map Location: ",
+                tg_gmap: "• Google Maps Link: ",
+                tg_items: "📦 Ordered Items",
+                tg_summary: "💰 Summary",
+                tg_subtotal: "• Subtotal: ",
+                tg_delivery: "• Delivery Fee: ",
+                tg_grandtotal: "• Total Amount: "
             },
             zh: {
                 cover_title: "打造您的理想风格", cat_men: "男装", cat_women: "女装", cat_tops: "上衣", cat_pants: "裤子", cat_outerwear: "外套", sub_all: "全部",
@@ -749,7 +775,20 @@
                 toast_added: "已成功加入购物车！",
                 stock_remaining: "剩余库存: ",
                 in_stock: " (有货)",
-                out_of_stock: "缺货 (Out of stock)"
+                out_of_stock: "缺货 (Out of stock)",
+                // Telegram Message Translations (CN)
+                tg_title: "🛍️ Oneday Clothing — 新订单",
+                tg_customer: "👤 客户信息",
+                tg_name: "• 姓名: ",
+                tg_phone: "• 电话: ",
+                tg_address: "• 地址: ",
+                tg_map: "• 坐标: ",
+                tg_gmap: "• Google Maps 链接: ",
+                tg_items: "📦 订购商品",
+                tg_summary: "💰 总结",
+                tg_subtotal: "• 商品小计: ",
+                tg_delivery: "• 配送费: ",
+                tg_grandtotal: "• 总金额: "
             }
         };
 
@@ -1569,17 +1608,19 @@
 
                 let result = await response.json();
                 if (result.success) {
-                    let message = "🛍️ Oneday Clothing — New Order\n\n";
-                    message += "👤 ព័ត៌មានអតិថិជន\n";
-                    message += `• ឈ្មោះ: ${name}\n`;
-                    message += `• លេខទូរស័ព្ទ: ${phone}\n`;
-                    message += `• អាសយដ្ឋាន: ${address}\n`;
+                    let t = translations[currentLang]; // 🌐 យកវចនានុក្រមតាមភាសាដែលជ្រើសរើស (km, en, zh)
+
+                    let message = `${t.tg_title}\n\n`;
+                    message += `${t.tg_customer}\n`;
+                    message += `${t.tg_name}${name}\n`;
+                    message += `${t.tg_phone}${phone}\n`;
+                    message += `${t.tg_address}${address}\n`;
                     if (mapUrl) {
                         let cleanCoords = mapUrl.replace(/\s+/g, '');
-                        message += `• ទីតាំង Map: ${mapUrl}\n`;
-                        message += `• Link Google Maps: https://www.google.com/maps?q=${cleanCoords}\n`;
+                        message += `${t.tg_map}${mapUrl}\n`;
+                        message += `${t.tg_gmap}https://www.google.com/maps?q=${cleanCoords}\n`;
                     }
-                    message += "\n📦 ទំនិញដែលបានកុម្មង់\n";
+                    message += `\n${t.tg_items}\n`;
 
                     let index = 1;
                     let subtotalPrice = 0;
@@ -1606,10 +1647,10 @@
 
                     let grandTotal = subtotalPrice + deliveryFee;
 
-                    message += `\n💰 សរុប\n`;
-                    message += `• តម្លៃទំនិញ: $${subtotalPrice.toFixed(2)}\n`;
-                    message += `• ថ្លៃដឹកជញ្ជូន: ${deliveryFeeText}\n`;
-                    message += `• សរុបទាំងអស់: $${grandTotal.toFixed(2)}\n\n`;
+                    message += `\n${t.tg_summary}\n`;
+                    message += `${t.tg_subtotal}$${subtotalPrice.toFixed(2)}\n`;
+                    message += `${t.tg_delivery}${deliveryFeeText}\n`;
+                    message += `${t.tg_grandtotal}$${grandTotal.toFixed(2)}\n\n`;
 
                     cart = {};
                     renderCart();
