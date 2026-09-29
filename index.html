@@ -211,6 +211,30 @@
             background-size: 7px auto;
         }
 
+        /* 🔘 ស្ទីលប៊ូតុង View 3D អណ្តែតលើរូបភាព */
+        .btn-3d-toggle {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(15, 23, 42, 0.85);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            z-index: 12;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            backdrop-filter: blur(4px);
+            transition: background 0.2s;
+        }
+        .btn-3d-toggle:hover {
+            background: var(--accent);
+        }
+
         /* 🧠 SMART RESPONSIVE COVER CONTAINER */
         .cover-container { width: 100%; max-width: 1200px; margin: 0 auto; background: var(--card-bg); border-bottom: 1px solid var(--border-color); margin-bottom: 12px; position: relative; }
         .cover-slider { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
@@ -395,6 +419,36 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 14px; }
         .modal-title { font-size: 16px; font-weight: 900; color: var(--primary); display: flex; align-items: center; gap: 6px; }
         .btn-close { background: var(--accent-light); border: none; font-size: 14px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; color: var(--text-muted); }
+
+        /* 🎬 Video / 3D Popup Modal Styles */
+        .model-3d-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 500;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            backdrop-filter: blur(6px);
+        }
+        .model-3d-overlay.active {
+            display: flex;
+        }
+        .model-3d-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 420px;
+            aspect-ratio: 9/16;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            position: relative;
+            background-color: #000;
+        }
 
         #cart-list { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; max-height: 260px; }
         .cart-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 10px 0; }
@@ -686,6 +740,16 @@
                     បញ្ជាក់ទីតាំងនេះ
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- 🧊 3D Video Popup Modal -->
+    <div class="model-3d-overlay" id="videoPopupModal" onclick="handleModalClick(event, 'videoPopupModal')">
+        <div class="model-3d-container">
+            <button class="btn-close" onclick="closeModal('videoPopupModal')" style="position: absolute; top: 12px; right: 12px; z-index: 20; background: rgba(0,0,0,0.6); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer;">✕</button>
+            <video id="popupVideoPlayer" autoplay loop muted playsinline webkit-playsinline style="width: 100%; height: 100%; object-fit: cover;">
+                <source src="" type="video/mp4">
+            </video>
         </div>
     </div>
 
@@ -1023,8 +1087,35 @@
         }
 
         function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
-        function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+        function closeModal(modalId) { 
+            let modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                if (modalId === 'videoPopupModal') {
+                    let videoPlayer = document.getElementById('popupVideoPlayer');
+                    if (videoPlayer) {
+                        videoPlayer.pause();
+                        videoPlayer.src = "";
+                    }
+                }
+            }
+        }
         function handleModalClick(event, modalId) { if (event.target.id === modalId) closeModal(modalId); }
+
+        function openVideoPopup(videoUrl) {
+            let modal = document.getElementById('videoPopupModal');
+            let videoPlayer = document.getElementById('popupVideoPlayer');
+            
+            if (videoPlayer && videoUrl) {
+                videoPlayer.src = videoUrl;
+                videoPlayer.load();
+                videoPlayer.play().catch(err => console.log("Auto-play blocked:", err));
+            }
+            
+            if (modal) {
+                modal.classList.add('active');
+            }
+        }
 
         function toggleCartModal() { 
             let modal = document.getElementById('cartModal');
@@ -1229,11 +1320,22 @@
                         </video>`;
                 }
 
+                // 🎥 បង្កើតប៊ូតុង View 3D เฉพาะពេលមាន model_3d_url
+                let btn3dHtml = '';
+                if (prod.model_3d_url && prod.model_3d_url.trim() !== '') {
+                    btn3dHtml = `
+                        <button class="btn-3d-toggle" onclick="openVideoPopup('${prod.model_3d_url}')">
+                            🎥 View 3D
+                        </button>
+                    `;
+                }
+
                 let cardHtml = `
                     <div class="card" id="prod-${ref}" data-gender="${prod.gender || 'men'}" data-type="${prod.type || 'tops'}">
                         <span class="badge">Ref: ${ref}</span>
-                        <div class="img-box">
+                        <div class="img-box" style="position: relative;">
                             ${mediaHtml}
+                            ${btn3dHtml}
                         </div>
                         <div>
                             <div class="prod-title">${displayTitle}</div>
@@ -1593,7 +1695,7 @@
             }
 
             if (Object.keys(cart).length === 0) {
-                cartList.innerHTML = `<div class="empty-msg">${translations[currentLang].empty_cart}</div>`;
+                cartList.innerHTML = `<div class="empty-msg" data-key="empty_cart">${translations[currentLang].empty_cart}</div>`;
                 modalFooter.style.display = 'none';
                 summaryBox.style.display = 'none';
             } else {
