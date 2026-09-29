@@ -454,14 +454,9 @@
         </div>
     </nav>
 
-    <!-- 🧠 Dynamic Cover Container with Slider, Auto-Slide & Nav Buttons -->
-    <div class="cover-container" style="position: relative;">
+    <!-- 🧠 Dynamic Cover Container with Slider & Auto-Slide (Clean UI without arrow buttons) -->
+    <div class="cover-container">
         <div class="cover-slider" id="coverSlider" onscroll="updateCoverDots()"></div>
-
-        <!-- ⬅️➡️ Left / Right Navigation Buttons -->
-        <button onclick="scrollCover(-1)" style="position: absolute; left: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">‹</button>
-        <button onclick="scrollCover(1)" style="position: absolute; right: 10px; top: 40%; transform: translateY(-50%); background: rgba(0,0,0,0.4); color: #fff; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; z-index: 20; font-size: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">›</button>
-
         <div class="cover-dots" id="coverDots"></div>
         <div class="cover-info">
             <div class="sub-title">Simple · Modern · Confident</div>
@@ -714,7 +709,6 @@
                 stock_remaining: "ស្តុកនៅសល់: ",
                 in_stock: " (មានក្នុងស្តុក)",
                 out_of_stock: "អស់ស្តុក (Out of stock)",
-                // Telegram Message Translations (KH)
                 tg_title: "🛍️ Oneday Clothing — New Order",
                 tg_customer: "👤 ព័ត៌មានអតិថិជន",
                 tg_name: "• ឈ្មោះ: ",
@@ -745,7 +739,6 @@
                 stock_remaining: "Stock remaining: ",
                 in_stock: " (In stock)",
                 out_of_stock: "Out of stock",
-                // Telegram Message Translations (EN)
                 tg_title: "🛍️ Oneday Clothing — New Order",
                 tg_customer: "👤 Customer Information",
                 tg_name: "• Name: ",
@@ -776,7 +769,6 @@
                 stock_remaining: "剩余库存: ",
                 in_stock: " (有货)",
                 out_of_stock: "缺货 (Out of stock)",
-                // Telegram Message Translations (CN)
                 tg_title: "🛍️ Oneday Clothing — 新订单",
                 tg_customer: "👤 客户信息",
                 tg_name: "• 姓名: ",
@@ -843,14 +835,6 @@
             }
         }
 
-        function scrollCover(direction) {
-            const slider = document.getElementById('coverSlider');
-            if (!slider) return;
-            let slideWidth = slider.clientWidth;
-            slider.scrollBy({ left: direction * slideWidth, behavior: 'smooth' });
-            resetAutoSlide();
-        }
-
         function startAutoSlide() {
             if (slideInterval) clearInterval(slideInterval);
             slideInterval = setInterval(() => {
@@ -865,11 +849,6 @@
                     slider.scrollBy({ left: slideWidth, behavior: 'smooth' });
                 }
             }, SLIDE_DELAY);
-        }
-
-        function resetAutoSlide() {
-            clearInterval(slideInterval);
-            startAutoSlide();
         }
 
         async function loadWebsiteSettings() {
@@ -1608,7 +1587,7 @@
 
                 let result = await response.json();
                 if (result.success) {
-                    let t = translations[currentLang]; // 🌐 យកវចនានុក្រមតាមភាសាដែលជ្រើសរើស (km, en, zh)
+                    let t = translations[currentLang];
 
                     let message = `${t.tg_title}\n\n`;
                     message += `${t.tg_customer}\n`;
