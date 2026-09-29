@@ -96,7 +96,7 @@ async function isMediaInUse(fileName) {
     if (!fileName) return false;
     try {
         let prodCheck = await pool.query(
-            "SELECT COUNT(*) FROM products WHERE video_url LIKE $1",
+            "SELECT COUNT(*) FROM products WHERE video_url LIKE $1 OR model_3d_url LIKE $1",
             [`%${fileName}%`]
         );
         if (parseInt(prodCheck.rows[0].count) > 0) return true;
@@ -167,6 +167,7 @@ async function initDB() {
                 gender VARCHAR(20),
                 type VARCHAR(20),
                 video_url VARCHAR(255),
+                model_3d_url TEXT,
                 price DECIMAL(10,2),
                 cost_price DECIMAL(10,2) DEFAULT 0
             );
@@ -176,6 +177,7 @@ async function initDB() {
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS title_zh VARCHAR(255);`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_en TEXT;`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS desc_zh TEXT;`);
+        await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS model_3d_url TEXT;`);
         await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2) DEFAULT 0;`);
 
         await pool.query(`
@@ -250,19 +252,19 @@ async function initDB() {
         let checkProd = await pool.query("SELECT COUNT(*) FROM products");
         if (parseInt(checkProd.rows[0].count) === 0) {
             const initialProducts = [
-                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', 15.00, 0.00],
-                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', 6.00, 0.00],
-                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', 20.00, 0.00],
-                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', 7.00, 0.00],
-                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', 12.00, 0.00],
-                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', 18.00, 0.00]
+                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', '', 15.00, 0.00],
+                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', '', 6.00, 0.00],
+                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', '', 20.00, 0.00],
+                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', '', 7.00, 0.00],
+                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', '', 12.00, 0.00],
+                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', '', 18.00, 0.00]
             ];
             for (let prod of initialProducts) {
                 let tTitle = await autoTranslate(prod[1]);
                 let tDesc = await autoTranslate(prod[2]);
                 await pool.query(
-                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (ref) DO NOTHING",
-                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6], prod[7]]
+                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, model_3d_url, price, cost_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (ref) DO NOTHING",
+                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6], prod[7], prod[8]]
                 );
             }
         }
@@ -376,7 +378,7 @@ app.post('/api/admin/update-stock', async (req, res) => {
 });
 
 app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, price, initial_stock } = req.body;
+    let { ref, title_km, desc_km, gender, type, video_url, model_3d_url, price, initial_stock } = req.body;
     try {
         let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
         let parsedPrice = parseFloat(price) || 0;
@@ -387,11 +389,11 @@ app.post('/api/admin/add-product', async (req, res) => {
         let tDesc = await autoTranslate(desc_km || '');
 
         await pool.query(
-            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, model_3d_url, price, cost_price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11, cost_price = $12`,
-            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', parsedPrice, parsedCost]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, model_3d_url = $11, price = $12, cost_price = $13`,
+            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', model_3d_url || '', parsedPrice, parsedCost]
         );
 
         let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -640,6 +642,7 @@ bot.hears(/^\/search\s*(.+)/i, async (ctx) => {
         msg += `• តម្លៃ: $${prod.price}\n`;
         msg += `• ភេទ: ${prod.gender}\n`;
         msg += `• ប្រភេទ: ${prod.type}\n`;
+        msg += `• មាន 3D: ${prod.model_3d_url ? '✅ មាន' : '❌ គ្មាន'}\n`;
         msg += `• ស្តុក: [ ${stockText} ]\n`;
         if (prod.desc_km) msg += `• ការបរិយាយ: ${prod.desc_km}\n`;
 
@@ -738,7 +741,6 @@ bot.action('web_back_menu', async (ctx) => {
     });
 });
 
-// 🎬 Multi-Cover Management Menu (Add & Delete Handlers)
 bot.action('web_edit_cover', async (ctx) => {
     try {
         await ctx.answerCbQuery();
@@ -792,7 +794,6 @@ bot.action('web_cover_delete_list', async (ctx) => {
     }
 });
 
-// 🔥 ប៊ូតុងលុប Cover ទាំងអស់ចោលតែម្តង
 bot.action('web_cover_delete_all', async (ctx) => {
     try {
         await pool.query("DELETE FROM website_covers");
@@ -821,16 +822,8 @@ bot.action(/^del_cover_(\d+)$/, async (ctx) => {
                 let fileName = coverUrl.split('/videos/').pop().split('?')[0];
                 let filePath = path.join(videoDir, fileName);
 
-                let otherCoverCheck = await pool.query(
-                    "SELECT COUNT(*) FROM website_covers WHERE cover_url LIKE $1",
-                    [`%${fileName}%`]
-                );
-                let otherProdCheck = await pool.query(
-                    "SELECT COUNT(*) FROM products WHERE video_url LIKE $1",
-                    [`%${fileName}%`]
-                );
-
-                if (parseInt(otherCoverCheck.rows[0].count) === 0 && parseInt(otherProdCheck.rows[0].count) === 0) {
+                let inUse = await isMediaInUse(fileName);
+                if (!inUse) {
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
                     }
@@ -903,7 +896,7 @@ bot.command('setmeowner', async (ctx) => {
             "INSERT INTO admins (chat_id, username, is_owner) VALUES ($1, $2, TRUE) ON CONFLICT (chat_id) DO UPDATE SET is_owner = TRUE, username = $2",
             [chatId, username]
         );
-        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ。');
+        ctx.reply('👑 ជោគជ័យ! Account របស់បងត្រូវបានកំណត់ជា Owner ផ្លូវការហើយ។');
     } catch (err) {
         ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
@@ -1119,6 +1112,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
                     [{ text: '💵 កែប្រែតម្លៃលក់ (Price)', callback_data: `edit_f_price_${cleanRef}` }],
                     [{ text: '📄 កែប្រែការបរិយាយ (Description)', callback_data: `edit_f_desc_${cleanRef}` }],
                     [{ text: '🎥/🖼️ កែប្រែ Media (Video/Image)', callback_data: `edit_f_video_${cleanRef}` }],
+                    [{ text: '🧊 កែប្រែវីដេអូ 3D (3D Model)', callback_data: `edit_f_3d_${cleanRef}` }],
                     [{ text: '🚻 កែប្រែភេទ (Gender)', callback_data: `edit_f_gender_${cleanRef}` }],
                     [{ text: '❌ បោះបង់ (Cancel)', callback_data: 'edit_f_cancel' }]
                 ]
@@ -1129,7 +1123,7 @@ async function handleEditRefSelection(ctx, chatId, cleanRef) {
     }
 }
 
-bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) => {
+bot.action(/^edit_f_(title|price|desc|video|3d|gender|cancel)_(.+)$/, async (ctx) => {
     let field = ctx.match[1];
     let ref = ctx.match[2];
     let chatId = ctx.chat.id;
@@ -1164,6 +1158,7 @@ bot.action(/^edit_f_(title|price|desc|video|gender|cancel)_(.+)$/, async (ctx) =
     else if (field === 'price') promptText = `💵 សូមសរសេរតម្លៃលក់ថ្មីសម្រាប់ Ref ${ref} (ឧ. 15.00):`;
     else if (field === 'desc') promptText = `📄 សូមសរសេរការបរិយាយថ្មីសម្រាប់ Ref ${ref}:`;
     else if (field === 'video') promptText = `🎥/🖼️ សូម Upload Video ឬ រូបភាព (Image) ថ្មីសម្រាប់ Ref ${ref}:`;
+    else if (field === '3d') promptText = `🧊 សូម Upload វីដេអូ 3D ថ្មីសម្រាប់ Ref ${ref} (ឬផ្ញើសារ 'none' ដើម្បីលុបចេញ):`;
 
     await ctx.editMessageText(promptText);
 });
@@ -1186,7 +1181,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
-    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️️ គ្មានសិទ្ធិ!');
 
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -1265,7 +1260,7 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
         if (orderRes.rows.length === 0) return ctx.answerCbQuery('❌ រកមិនឃើញ!');
         let order = orderRes.rows[0];
-        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️ លុបចោលរួចហើយ!');
+        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️️ លុបចោលរួចហើយ!');
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         for (let key in items) {
@@ -1283,6 +1278,37 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
     } catch (err) {
         await ctx.answerCbQuery('❌ មានបញ្ហា', { show_alert: true });
     }
+});
+
+// 🧊 Callback Handler ពេលសួរថាមាន 3D ទេ (Yes / No)
+bot.action('has_3d_yes', async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId] || userStates[chatId].step !== 'ASK_HAS_3D') return;
+    
+    userStates[chatId].step = 'GET_3D_VIDEO';
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('🧊 សូម Upload វីដេអូ 3D (360 degree) សម្រាប់ដាក់ Button View 3D៖');
+});
+
+bot.action('has_3d_no', async (ctx) => {
+    const chatId = ctx.chat.id;
+    if (!userStates[chatId] || userStates[chatId].step !== 'ASK_HAS_3D') return;
+
+    userStates[chatId].data.model_3d_url = ''; // គ្មាន 3D
+    userStates[chatId].step = 'GENDER';
+
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('❌ គ្មាន 3D');
+    await ctx.reply('ជ្រើសរើសប្រភេទភេទ:', {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: 'Men (បុរស)', callback_data: 'gender_men' },
+                    { text: 'Women (នារី)', callback_data: 'gender_women' }
+                ]
+            ]
+        }
+    });
 });
 
 bot.action(/^gender_(.+)$/, async (ctx) => {
@@ -1330,11 +1356,11 @@ bot.action(/^type_(.+)$/, async (ctx) => {
         let tDesc = await autoTranslate(state.data.desc_km || '');
 
         await pool.query(
-            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, price, cost_price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, model_3d_url, price, cost_price) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
              ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, price = $11, cost_price = $12`,
-            [cleanRef, state.data.title_km, tTitle.en, tTitle.zh, state.data.desc_km || '', tDesc.en, tDesc.zh, state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', parsedPrice, parsedCost]
+             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, model_3d_url = $11, price = $12, cost_price = $13`,
+            [cleanRef, state.data.title_km, tTitle.en, tTitle.zh, state.data.desc_km || '', tDesc.en, tDesc.zh, state.data.gender || 'men', state.data.type || 'tops', state.data.video_url || '', state.data.model_3d_url || '', parsedPrice, parsedCost]
         );
 
         if (state.action === 'ADD') {
@@ -1435,7 +1461,6 @@ bot.on('message', async (ctx) => {
             return ctx.reply('⚠️ សូម Upload វីដេអូ រូបភាព ឬផ្ញើ Link លីងឱ្យបានត្រឹមត្រូវ!');
         }
 
-        // ➕ បន្ថែម Cover ថ្មីចូល Website Covers Table
         if (state.step === 'WAITING_ADD_COVER') {
             await pool.query(
                 "INSERT INTO website_covers (cover_url) VALUES ($1)",
@@ -1533,6 +1558,28 @@ bot.on('message', async (ctx) => {
             delete userStates[chatId];
             return ctx.reply(`✅ កែប្រែ Media សម្រាប់ Ref ${ref} ជោគជ័យ!`);
         }
+        if (state.step === 'UPDATE_3D') {
+            let model3dUrl = '';
+            let fileObj = getTelegramMediaObject(msg);
+
+            if (text.trim().toLowerCase() === 'none') {
+                model3dUrl = '';
+            } else if (fileObj) {
+                try {
+                    model3dUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, '3d_video');
+                } catch (err) {
+                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
+                }
+            } else if (text.trim()) {
+                model3dUrl = text.trim();
+            } else {
+                return ctx.reply('⚠️ សូម Upload វីដេអូ 3D ឬพิมพ์ "none" ដើម្បីលុបចេញ!');
+            }
+
+            await pool.query("UPDATE products SET model_3d_url = $1 WHERE UPPER(ref) = $2", [model3dUrl, ref]);
+            delete userStates[chatId];
+            return ctx.reply(`🧊 កែប្រែវីដេអូ 3D សម្រាប់ Ref ${ref} ជោគជ័យ!`);
+        }
         return;
     }
 
@@ -1588,7 +1635,38 @@ bot.on('message', async (ctx) => {
             }
 
             state.data.video_url = videoUrl;
+            state.step = 'ASK_HAS_3D'; // ➡️ ជំហានសួរថាមាន 3D ទេ
+
+            return ctx.reply('🧊 តើទំនិញនេះមានវីដេអូ 3D (360 degree) ដែរឬទេ?', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: '✅ មាន (Yes)', callback_data: 'has_3d_yes' },
+                            { text: '❌ គ្មាន (No)', callback_data: 'has_3d_no' }
+                        ]
+                    ]
+                }
+            });
+
+        case 'GET_3D_VIDEO':
+            let model3dUrl = '';
+            let file3dObj = getTelegramMediaObject(msg);
+
+            if (file3dObj) {
+                try {
+                    model3dUrl = await downloadAndSaveTelegramFile(ctx, file3dObj.file_id, '3d_video');
+                } catch (err) {
+                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
+                }
+            } else if (text.trim()) {
+                model3dUrl = text.trim();
+            } else {
+                return ctx.reply('⚠️ សូម Upload វីដេអូ 3D ឱ្យបានត្រឹមត្រូវ!');
+            }
+
+            state.data.model_3d_url = model3dUrl;
             state.step = 'GENDER';
+
             return ctx.reply('ជ្រើសរើសប្រភេទភេទ:', {
                 reply_markup: {
                     inline_keyboard: [
@@ -1610,7 +1688,7 @@ bot.telegram.setMyCommands([
     { command: 'website', description: 'កែប្រែ Cover Slider (Add/Delete), Logo & Banner' },
     { command: 'delivery', description: 'កែប្រែថ្លៃដឹក (Delivery Fee ឬ ទូទាត់ជាមួយហាង)' },
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
-    { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក (Image/Video)' },
+    { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក (Image/Video & 3D)' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
     { command: 'cleanup', description: 'សម្អាត Media ចាស់ៗដែលមិនបានប្រើប្រាស់' },
     { command: 'cancel', description: 'បោះបង់សកម្មភាពកំពុងរត់' },
