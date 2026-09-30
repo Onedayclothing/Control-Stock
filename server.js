@@ -39,7 +39,7 @@ const pool = new Pool({
 // 🔒 Telegram Bot Setup
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
-    console.error('⚠️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
+    console.error('⚠️️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
 }
 const bot = new Telegraf(BOT_TOKEN || 'NO_TOKEN_PROVIDED');
 
@@ -152,7 +152,7 @@ async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
     return `${RAILWAY_HOST}/videos/${fileName}`;
 }
 
-// បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
+// បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់ (គ្មានទំនិញគំរូអូតូទៀតទេ)
 async function initDB() {
     try {
         await pool.query(`
@@ -249,43 +249,6 @@ async function initDB() {
             );
         `);
         
-        let checkProd = await pool.query("SELECT COUNT(*) FROM products");
-        if (parseInt(checkProd.rows[0].count) === 0) {
-            const initialProducts = [
-                ['1', 'T-Shirt Polo Collab OneDay', 'អាវយឺត Polo រចនាម៉ូដទាន់សម័យ ងាយពាក់', 'men', 'tops', 'videos/Man_walking_in_fashion_studio_202608272139.mp4', '', 15.00, 0.00],
-                ['2', 'Olive Green Mandarin Collar Long-Sleeve Shirt', 'អាវដៃវែងកាតគៀនពណ៌បៃតងអូលីវ ស្អាតប្រណិត', 'men', 'tops', 'videos/Model_walking_in_fashion_studio_202608272237.mp4', '', 6.00, 0.00],
-                ['3', 'Outfit Smart Casual (Full Set)', 'ឈុតសម្លៀកបំពាក់ Smart Casual ទាន់សម័យ', 'men', 'tops', 'videos/Male_model_walking_in_studio_202608271814.mp4', '', 20.00, 0.00],
-                ['4', 'Plaid Sailor Collar Blouse', 'អាវនារី ករសាឡាប្រណិត ស្អាតទាន់សម័យ', 'women', 'tops', 'videos/Woman_modeling_shirt_360_rotation_202609061421.mp4', '', 7.00, 0.00],
-                ['5', 'Striped Crew Neck T-Shirt', 'អាវយឺតដៃខ្លី Casual សាមញ្ញ មានករបើកមូល និងមានម៉ូដឆ្នូតទទឹងពណ៌ត្នោតស្រាលលាយស', 'men', 'tops', 'videos/Fashion_commercial_video_production_20260911003050.mp4', '', 12.00, 0.00],
-                ['6', 'Vertical Striped Button-Up Shirt', 'អាវដៃវែងក្រឡាមូដឆ្នូតត្រង់ សម្រាប់ធ្វើការ ទៅរៀន', 'men', 'tops', 'videos/Fashion_model_commercial_video_20260911003817.mp4', '', 18.00, 0.00]
-            ];
-            for (let prod of initialProducts) {
-                let tTitle = await autoTranslate(prod[1]);
-                let tDesc = await autoTranslate(prod[2]);
-                await pool.query(
-                    "INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, model_3d_url, price, cost_price) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (ref) DO NOTHING",
-                    [prod[0], prod[1], tTitle.en, tTitle.zh, prod[2], tDesc.en, tDesc.zh, prod[3], prod[4], prod[5], prod[6], prod[7], prod[8]]
-                );
-            }
-        }
-
-        let checkStock = await pool.query("SELECT COUNT(*) FROM stock");
-        if (parseInt(checkStock.rows[0].count) === 0) {
-            const initialData = [
-                ['1', 'S', 10, 15.00], ['1', 'M', 15, 15.00], ['1', 'L', 12, 15.00], ['1', 'XL', 8, 15.00], ['1', 'XXL', 5, 15.00],
-                ['2', 'S', 20, 6.00],  ['2', 'M', 25, 6.00],  ['2', 'L', 18, 6.00],  ['2', 'XL', 10, 6.00], ['2', 'XXL', 4, 6.00],
-                ['3', 'S', 5, 20.00],  ['3', 'M', 10, 20.00], ['3', 'L', 8, 20.00],   ['3', 'XL', 6, 20.00], ['3', 'XXL', 2, 20.00],
-                ['4', 'S', 15, 7.00],  ['4', 'M', 20, 7.00],  ['4', 'L', 14, 7.00],  ['4', 'XL', 9, 7.00],  ['4', 'XXL', 3, 7.00],
-                ['5', 'S', 12, 12.00], ['5', 'M', 18, 12.00], ['5', 'L', 15, 12.00], ['5', 'XL', 7, 12.00], ['5', 'XXL', 4, 12.00],
-                ['6', 'S', 10, 18.00], ['6', 'M', 14, 18.00], ['6', 'L', 11, 18.00], ['6', 'XL', 6, 18.00], ['6', 'XXL', 2, 18.00]
-            ];
-            for (let row of initialData) {
-                await pool.query(
-                    "INSERT INTO stock (ref, size, stock_qty, price) VALUES ($1, $2, $3, $4) ON CONFLICT (ref, size) DO NOTHING",
-                    row
-                );
-            }
-        }
         console.log("Database initialized successfully.");
     } catch (err) {
         console.error("Database initialization error:", err);
@@ -730,7 +693,7 @@ bot.action('web_back_menu', async (ctx) => {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
+                [{ text: '👁️️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
                 [{ text: '🎬 🖼️ កែប្រែ Cover Slider (Add/Delete)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
@@ -1181,7 +1144,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
 bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
-    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️️ គ្មានសិទ្ធិ!');
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔ គ្មានសិទ្ធិ!');
 
     let rawRef = ctx.match[1].trim();
     let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
@@ -1260,7 +1223,7 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
         if (orderRes.rows.length === 0) return ctx.answerCbQuery('❌ រកមិនឃើញ!');
         let order = orderRes.rows[0];
-        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️️ លុបចោលរួចហើយ!');
+        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠ លុបចោលរួចហើយ!');
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         for (let key in items) {
