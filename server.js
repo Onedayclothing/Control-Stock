@@ -39,7 +39,7 @@ const pool = new Pool({
 // 🔒 Telegram Bot Setup
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
-    console.error('⚠️️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
+    console.error('⚠️ BOT_TOKEN មិនទាន់បានកំណត់នៅក្នុង Environment Variables ទេ!');
 }
 const bot = new Telegraf(BOT_TOKEN || 'NO_TOKEN_PROVIDED');
 
@@ -152,7 +152,7 @@ async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
     return `${RAILWAY_HOST}/videos/${fileName}`;
 }
 
-// បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់ (គ្មានទំនិញគំរូអូតូទៀតទេ)
+// បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
 async function initDB() {
     try {
         await pool.query(`
@@ -210,7 +210,6 @@ async function initDB() {
             );
         `);
 
-        // 📦 Table សម្រាប់រក្សាទុក Cover ច្រើន (Multi-Cover Slider)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS website_covers (
                 id SERIAL PRIMARY KEY,
@@ -269,7 +268,6 @@ app.get('/api/website-settings', async (req, res) => {
     }
 });
 
-// 🌐 API សម្រាប់ទាញយក Cover ទាំងអស់សម្រាប់ Slider
 app.get('/api/website-covers', async (req, res) => {
     try {
         let result = await pool.query("SELECT * FROM website_covers ORDER BY id ASC");
@@ -517,7 +515,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា。');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -693,7 +691,7 @@ bot.action('web_back_menu', async (ctx) => {
         parse_mode: 'Markdown',
         reply_markup: {
             inline_keyboard: [
-                [{ text: '👁️️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
+                [{ text: '👁️ មើលការកំណត់បច្ចុប្បន្ន', callback_data: 'web_view_settings' }],
                 [{ text: '🎬 🖼️ កែប្រែ Cover Slider (Add/Delete)', callback_data: 'web_edit_cover' }],
                 [{ text: '🎨 កែប្រែ Logo ហាង & Cart Icon', callback_data: 'web_edit_icon' }],
                 [{ text: '📢 កែប្រែសារ Banner (Main Title)', callback_data: 'web_edit_title' }],
@@ -728,7 +726,7 @@ bot.action('web_cover_add', async (ctx) => {
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_ADD_COVER' };
     try {
         await ctx.answerCbQuery();
-        await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+        await ctx.editMessageText('🎬/🖼️️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
     } catch (err) {
         console.error("Error in web_cover_add:", err);
     }
@@ -1141,42 +1139,75 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-bot.hears(/^\/deleteref(.+)/i, async (ctx) => {
+// 🗑️ មុខងារថ្មី: អាចលុប Ref ច្រើនក្នុងពេលតែមួយ (ឧ. /deleteref 1,2,3 ឬ 1-5)
+bot.hears(/^\/deleteref\s*(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
     if (!await isAdminUser(chatId, username)) return ctx.reply('⛔ គ្មានសិទ្ធិ!');
 
-    let rawRef = ctx.match[1].trim();
-    let cleanRef = rawRef.replace(/ref:?\s*/i, '').trim().toUpperCase();
+    let rawInput = ctx.match[1].trim();
+    let parts = rawInput.split(',').map(p => p.trim());
+    let refsToDelete = [];
 
-    try {
-        let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-        if (check.rows.length === 0) return ctx.reply(`❌ រកមិនឃើញទំនិញ Ref ${cleanRef} ឡើយ!`);
-
-        let product = check.rows[0];
-
-        await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
-        await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
-        await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
-
-        if (product.video_url && product.video_url.includes('/videos/')) {
-            try {
-                let fileName = product.video_url.split('/videos/').pop().split('?')[0];
-                let filePath = path.join(videoDir, fileName);
-
-                let inUse = await isMediaInUse(fileName);
-                if (!inUse && fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
+    for (let part of parts) {
+        if (part.includes('-')) {
+            let range = part.split('-').map(r => parseInt(r.trim()));
+            if (!isNaN(range[0]) && !isNaN(range[1])) {
+                for (let i = range[0]; i <= range[1]; i++) {
+                    refsToDelete.push(String(i));
                 }
-            } catch (e) {
-                console.error("Error deleting file:", e);
             }
+        } else if (part) {
+            let clean = part.replace(/ref:?\s*/i, '').trim().toUpperCase();
+            if (clean) refsToDelete.push(clean);
         }
-
-        ctx.reply(`🗑️ បានលុប Ref ${cleanRef} រួចរាល់! (លេខ Ref ផ្សេងទៀតត្រូវបានរក្សានៅដដែល)`);
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
     }
+
+    if (refsToDelete.length === 0) {
+        return ctx.reply('⚠️️ សូមបញ្ជាក់លេខ Ref ដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. `/deleteref 1` ឬ `/deleteref 1,2,3` ឬ `/deleteref 1-5`)', { parse_mode: 'Markdown' });
+    }
+
+    let successList = [];
+    let notFoundList = [];
+
+    for (let cleanRef of refsToDelete) {
+        try {
+            let check = await pool.query("SELECT * FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+            if (check.rows.length === 0) {
+                notFoundList.push(cleanRef);
+                continue;
+            }
+
+            let product = check.rows[0];
+
+            await pool.query("DELETE FROM stock WHERE UPPER(ref) = $1", [cleanRef]);
+            await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
+            await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
+
+            if (product.video_url && product.video_url.includes('/videos/')) {
+                try {
+                    let fileName = product.video_url.split('/videos/').pop().split('?')[0];
+                    let filePath = path.join(videoDir, fileName);
+
+                    let inUse = await isMediaInUse(fileName);
+                    if (!inUse && fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                } catch (e) {
+                    console.error("Error deleting file:", e);
+                }
+            }
+            successList.push(cleanRef);
+        } catch (err) {
+            console.error(`Error deleting ref ${cleanRef}:`, err);
+        }
+    }
+
+    let reportMsg = `🗑️ **លទ្ធផលនៃការលុប Ref:**\n`;
+    if (successList.length > 0) reportMsg += `✅ បានលុបជោគជ័យ: [ ${successList.join(', ')} ]\n`;
+    if (notFoundList.length > 0) reportMsg += `❌ រកមិនឃើញ: [ ${notFoundList.join(', ')} ]`;
+
+    ctx.reply(reportMsg, { parse_mode: 'Markdown' });
 });
 
 bot.command('cleanup', async (ctx) => {
@@ -1223,7 +1254,7 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
         if (orderRes.rows.length === 0) return ctx.answerCbQuery('❌ រកមិនឃើញ!');
         let order = orderRes.rows[0];
-        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠ លុបចោលរួចហើយ!');
+        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️️ លុបចោលរួចហើយ!');
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         for (let key in items) {
@@ -1598,7 +1629,7 @@ bot.on('message', async (ctx) => {
             }
 
             state.data.video_url = videoUrl;
-            state.step = 'ASK_HAS_3D'; // ➡️ ជំហានសួរថាមាន 3D ទេ
+            state.step = 'ASK_HAS_3D';
 
             return ctx.reply('🧊 តើទំនិញនេះមានវីដេអូ 3D (360 degree) ដែរឬទេ?', {
                 reply_markup: {
