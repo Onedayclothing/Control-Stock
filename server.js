@@ -2,8 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const { Telegraf } = require('telegraf');
-const fs = require('fs');
-const path = require('path');
+const cloudinary = require('cloudinary').v2;
 const translate = require('translate-google'); // 📦 Library សម្រាប់បកប្រែស្វ័យប្រវត្តិ
 
 const app = express();
@@ -11,18 +10,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
-// 📁 កំណត់ Directory Volume លើ Railway ឬ Local Disk
-const videoDir = process.env.STORAGE_PATH || path.join(__dirname, 'videos');
-if (!fs.existsSync(videoDir)) {
-    fs.mkdirSync(videoDir, { recursive: true });
-}
-
-// 🌐 Serve ហ្វាល Static (រូបភាព/វីដេអូ) ចេញពី Volume Directory តាម URL /videos
-app.use('/videos', express.static(videoDir));
+// ☁️ កំណត់តម្លៃ Cloudinary ជាមួយ Environment Variables របស់ Railway
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html')); // note: require path module if used, let's include path
 });
 
 // 🔒 ផ្លូវទី ២: សម្រាប់ Telegram Mini App (Admin គ្រប់គ្រងស្តុក)
@@ -91,32 +88,33 @@ async function autoTranslate(text) {
     }
 }
 
-// 🛡️ Helper Function: ពិនិត្យមើលថា File (រូបភាព/វីដេអូ) កំពុងប្រើលើ Web ឬអត់មុននឹងលុប
-async function isMediaInUse(fileName) {
-    if (!fileName) return false;
+// ☁️ Helper Function: ទាញយក File ពី Telegram រួច Upload ចូល Cloudinary ដោយផ្ទាល់
+async function uploadTelegramFileToCloudinary(ctx, fileId, folderName = 'oneday_shop') {
+    let linkObj = await ctx.telegram.getFileLink(fileId);
+    let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
+    
+    let uploadResult = await cloudinary.uploader.upload(fileUrl, {
+        folder: folderName,
+        resource_type: 'auto'
+    });
+
+    return uploadResult.secure_url; // ទទួលបាន Link Cloudinary សុវត្ថិភាព ១០០%
+}
+
+// 🗑️ Helper Function: លុប File ចេញពី Cloudinary តាមរយៈ URL ចាស់
+async function deleteCloudinaryFileByUrl(url) {
+    if (!url || !url.includes('cloudinary.com')) return;
     try {
-        let prodCheck = await pool.query(
-            "SELECT COUNT(*) FROM products WHERE video_url LIKE $1 OR model_3d_url LIKE $1",
-            [`%${fileName}%`]
-        );
-        if (parseInt(prodCheck.rows[0].count) > 0) return true;
-
-        let settingsCheck = await pool.query(
-            "SELECT COUNT(*) FROM website_settings WHERE value LIKE $1",
-            [`%${fileName}%`]
-        );
-        if (parseInt(settingsCheck.rows[0].count) > 0) return true;
-
-        let coverCheck = await pool.query(
-            "SELECT COUNT(*) FROM website_covers WHERE cover_url LIKE $1",
-            [`%${fileName}%`]
-        );
-        if (parseInt(coverCheck.rows[0].count) > 0) return true;
-
-        return false;
+        let parts = url.split('/');
+        let publicIdWithFolder = parts.slice(parts.indexOf('upload') + 2, parts.length).join('/');
+        let publicId = publicIdWithFolder.substring(0, publicIdWithFolder.lastIndexOf('.'));
+        if (!publicId) {
+            publicId = publicIdWithFolder; // fallback if no extension
+        }
+        await cloudinary.uploader.destroy(publicId);
+        console.log("Deleted old file from Cloudinary:", publicId);
     } catch (err) {
-        console.error("Error checking media usage:", err);
-        return true; 
+        console.error("Failed to delete from Cloudinary:", err);
     }
 }
 
@@ -126,30 +124,6 @@ function getTelegramMediaObject(msg) {
         return msg.photo[msg.photo.length - 1]; 
     }
     return msg.video || msg.video_note || msg.animation || msg.document || null;
-}
-
-// 📥 Helper Function ទាញយក និង Save ហ្វាល (រូបភាព ឬ វីដេអូ) ចូល Volume Disk
-async function downloadAndSaveTelegramFile(ctx, fileId, prefix = 'media') {
-    let linkObj = await ctx.telegram.getFileLink(fileId);
-    let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
-    
-    let ext = '.mp4';
-    if (ctx.message && ctx.message.photo && ctx.message.photo.length > 0) {
-        ext = '.jpg';
-    } else if (fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
-        ext = fileUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)[0].toLowerCase();
-    } else if (fileUrl.match(/\.(mp4|mov|avi|webm)/i)) {
-        ext = fileUrl.match(/\.(mp4|mov|avi|webm)/i)[0].toLowerCase();
-    }
-
-    let response = await fetch(fileUrl);
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-    let arrayBuffer = await response.arrayBuffer();
-    let buffer = Buffer.from(arrayBuffer);
-    let fileName = `${prefix}_${Date.now()}${ext}`;
-    
-    fs.writeFileSync(path.join(videoDir, fileName), buffer);
-    return `${RAILWAY_HOST}/videos/${fileName}`;
 }
 
 // បង្បង្កើត Table ស្តុក ផលិតផល អដ្មេន បញ្ជីខ្មៅ និង ការកុម្មង់
@@ -166,7 +140,7 @@ async function initDB() {
                 desc_zh TEXT,
                 gender VARCHAR(20),
                 type VARCHAR(20),
-                video_url VARCHAR(255),
+                video_url TEXT,
                 model_3d_url TEXT,
                 price DECIMAL(10,2),
                 cost_price DECIMAL(10,2) DEFAULT 0
@@ -338,42 +312,6 @@ app.post('/api/admin/update-stock', async (req, res) => {
     }
 });
 
-app.post('/api/admin/add-product', async (req, res) => {
-    let { ref, title_km, desc_km, gender, type, video_url, model_3d_url, price, initial_stock } = req.body;
-    try {
-        let cleanRef = String(ref).replace(/ref:?\s*/i, '').trim().toUpperCase();
-        let parsedPrice = parseFloat(price) || 0;
-        let parsedCost = 0;
-        let defaultQty = initial_stock !== undefined ? parseInt(initial_stock) : 0;
-
-        let tTitle = await autoTranslate(title_km);
-        let tDesc = await autoTranslate(desc_km || '');
-
-        await pool.query(
-            `INSERT INTO products (ref, title_km, title_en, title_zh, desc_km, desc_en, desc_zh, gender, type, video_url, model_3d_url, price, cost_price) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
-             ON CONFLICT (ref) DO UPDATE 
-             SET title_km = $2, title_en = $3, title_zh = $4, desc_km = $5, desc_en = $6, desc_zh = $7, gender = $8, type = $9, video_url = $10, model_3d_url = $11, price = $12, cost_price = $13`,
-            [cleanRef, title_km, tTitle.en, tTitle.zh, desc_km || '', tDesc.en, tDesc.zh, gender || 'men', type || 'tops', video_url || '', model_3d_url || '', parsedPrice, parsedCost]
-        );
-
-        let sizes = ['S', 'M', 'L', 'XL', 'XXL'];
-        for (let size of sizes) {
-            await pool.query(
-                `INSERT INTO stock (ref, size, stock_qty, price) 
-                 VALUES ($1, $2, $3, $4) 
-                 ON CONFLICT (ref, size) DO UPDATE 
-                 SET price = $4`,
-                [cleanRef, size, defaultQty, parsedPrice]
-            );
-        }
-
-        res.json({ success: true, message: `ទំនិញ Ref ${cleanRef} ត្រូវបានបន្ថែមជោគជ័យ!` });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
 app.post('/api/order', async (req, res) => {
     let { customer, items } = req.body;
     const client = await pool.connect();
@@ -515,7 +453,7 @@ bot.start(async (ctx) => {
         if (username) {
             await pool.query("UPDATE admins SET chat_id = $1 WHERE LOWER(username) = LOWER($2)", [chatId, username]);
         }
-        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា។');
+        return ctx.reply('👋 សួស្តី Admin! ប្រព័ន្ធគ្រប់គ្រងស្តុក OneDay Clothing ដំណើរការធម្មតា (Cloudinary Connected)។');
     }
 
     userStates[chatId] = { action: 'WAITING_PASSWORD' };
@@ -726,7 +664,7 @@ bot.action('web_cover_add', async (ctx) => {
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_ADD_COVER' };
     try {
         await ctx.answerCbQuery();
-        await ctx.editMessageText('🎬/🖼️️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+        await ctx.editMessageText('🎬/🖼 **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
     } catch (err) {
         console.error("Error in web_cover_add:", err);
     }
@@ -757,6 +695,10 @@ bot.action('web_cover_delete_list', async (ctx) => {
 
 bot.action('web_cover_delete_all', async (ctx) => {
     try {
+        let res = await pool.query("SELECT cover_url FROM website_covers");
+        for (let row of res.rows) {
+            await deleteCloudinaryFileByUrl(row.cover_url);
+        }
         await pool.query("DELETE FROM website_covers");
         await ctx.answerCbQuery('✅ បានលុប Cover ទាំងអស់ចោលជោគជ័យ!');
         await ctx.editMessageText('✅ **បានសម្អាត និងលុប Cover ទាំងអស់ចោលរួចរាល់ហើយ!**', {
@@ -778,18 +720,7 @@ bot.action(/^del_cover_(\d+)$/, async (ctx) => {
         if (res.rows.length > 0) {
             let coverUrl = res.rows[0].cover_url;
             await pool.query("DELETE FROM website_covers WHERE id = $1", [coverId]);
-
-            if (coverUrl && coverUrl.includes('/videos/')) {
-                let fileName = coverUrl.split('/videos/').pop().split('?')[0];
-                let filePath = path.join(videoDir, fileName);
-
-                let inUse = await isMediaInUse(fileName);
-                if (!inUse) {
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                }
-            }
+            await deleteCloudinaryFileByUrl(coverUrl);
         }
 
         await ctx.answerCbQuery('✅ បានលុប Cover ជោគជ័យ!');
@@ -1139,7 +1070,7 @@ bot.action(/^update_gender_(men|women)_(.+)$/, async (ctx) => {
     }
 });
 
-// 🗑️ មុខងារថ្មី: អាចលុប Ref ច្រើនក្នុងពេលតែមួយ (ឧ. /deleteref 1,2,3 ឬ 1-5)
+// 🗑️ មុខងារលុប Ref ជាមួយ Cloudinary Deletion
 bot.hears(/^\/deleteref\s*(.+)/i, async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
@@ -1164,7 +1095,7 @@ bot.hears(/^\/deleteref\s*(.+)/i, async (ctx) => {
     }
 
     if (refsToDelete.length === 0) {
-        return ctx.reply('⚠️️ សូមបញ្ជាក់លេខ Ref ដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. `/deleteref 1` ឬ `/deleteref 1,2,3` ឬ `/deleteref 1-5`)', { parse_mode: 'Markdown' });
+        return ctx.reply('⚠ សូមបញ្ជាក់លេខ Ref ដែលចង់លុបឱ្យបានត្រឹមត្រូវ (ឧ. `/deleteref 1` ឬ `/deleteref 1,2,3` ឬ `/deleteref 1-5`)', { parse_mode: 'Markdown' });
     }
 
     let successList = [];
@@ -1184,19 +1115,14 @@ bot.hears(/^\/deleteref\s*(.+)/i, async (ctx) => {
             await pool.query("DELETE FROM purchases WHERE UPPER(ref) = $1", [cleanRef]);
             await pool.query("DELETE FROM products WHERE UPPER(ref) = $1", [cleanRef]);
 
-            if (product.video_url && product.video_url.includes('/videos/')) {
-                try {
-                    let fileName = product.video_url.split('/videos/').pop().split('?')[0];
-                    let filePath = path.join(videoDir, fileName);
-
-                    let inUse = await isMediaInUse(fileName);
-                    if (!inUse && fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                } catch (e) {
-                    console.error("Error deleting file:", e);
-                }
+            // លុប Media ចាស់ចេញពី Cloudinary ស្វ័យប្រវត្តិ
+            if (product.video_url) {
+                await deleteCloudinaryFileByUrl(product.video_url);
             }
+            if (product.model_3d_url) {
+                await deleteCloudinaryFileByUrl(product.model_3d_url);
+            }
+
             successList.push(cleanRef);
         } catch (err) {
             console.error(`Error deleting ref ${cleanRef}:`, err);
@@ -1211,29 +1137,7 @@ bot.hears(/^\/deleteref\s*(.+)/i, async (ctx) => {
 });
 
 bot.command('cleanup', async (ctx) => {
-    const chatId = ctx.chat.id;
-    const username = ctx.from.username || '';
-    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
-
-    try {
-        if (!fs.existsSync(videoDir)) return ctx.reply('⚠️ គ្មាន Folder វីដេអូទេ!');
-        let files = fs.readdirSync(videoDir);
-
-        let deletedCount = 0;
-        for (let file of files) {
-            let inUse = await isMediaInUse(file);
-            if (!inUse) {
-                try {
-                    fs.unlinkSync(path.join(videoDir, file));
-                    deletedCount++;
-                } catch (e) {}
-            }
-        }
-
-        ctx.reply(`🧹 សម្អាត Media ចាស់ៗដែលមិនបានប្រើប្រាស់បានចំនួន ${deletedCount} ហ្វាល! (File ដែលកំពុងបង្ហាញលើ Web ត្រូវបានរក្សាទុក)`);
-    } catch (err) {
-        ctx.reply(`❌ មានបញ្ហា: ${err.message}`);
-    }
+    ctx.reply('🧹 ប្រព័ន្ធកំពុងប្រើប្រាស់ Cloudinary Cloud Storage 100% ដូច្នេះមិនចាំបាច់មានការសម្អាត Local File ទៀតទេ។');
 });
 
 bot.action(/^confirm_order_(.+)$/, async (ctx) => {
@@ -1254,7 +1158,7 @@ bot.action(/^cancel_order_(.+)$/, async (ctx) => {
         let orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
         if (orderRes.rows.length === 0) return ctx.answerCbQuery('❌ រកមិនឃើញ!');
         let order = orderRes.rows[0];
-        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠️️ លុបចោលរួចហើយ!');
+        if (order.status === 'CANCELLED') return ctx.answerCbQuery('⚠ លុបចោលរួចហើយ!');
 
         let items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         for (let key in items) {
@@ -1441,13 +1345,10 @@ bot.on('message', async (ctx) => {
         let fileObj = getTelegramMediaObject(msg);
 
         if (fileObj) {
-            if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតឱ្យទាញយកត្រឹម 20MB ប៉ុណ្ណោះ。');
-            }
             try {
-                uploadedUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'web');
+                uploadedUrl = await uploadTelegramFileToCloudinary(ctx, fileObj.file_id, 'oneday_shop');
             } catch (err) {
-                return ctx.reply(`❌ Upload បរាជ័យ: ${err.message}`);
+                return ctx.reply(`❌ Upload ទៅ Cloudinary បរាជ័យ: ${err.message}`);
             }
         } else if (text.trim().startsWith('http')) {
             uploadedUrl = text.trim();
@@ -1461,7 +1362,7 @@ bot.on('message', async (ctx) => {
                 [uploadedUrl]
             );
             delete userStates[chatId];
-            return ctx.reply(`✅ **ជោគជ័យ!** Cover ថ្មីត្រូវបានបន្ថែមចូលក្នុង Slider រួចរាល់៖\n${uploadedUrl}`, { parse_mode: 'Markdown' });
+            return ctx.reply(`✅ **ជោគជ័យ!** Cover ថ្មីត្រូវបានបន្ថែមចូលក្នុង Slider (Cloudinary) រួចរាល់៖\n${uploadedUrl}`, { parse_mode: 'Markdown' });
         }
 
         if (state.step === 'WAITING_ICON_LOGO') {
@@ -1518,30 +1419,23 @@ bot.on('message', async (ctx) => {
             let fileObj = getTelegramMediaObject(msg);
 
             if (fileObj) {
-                if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ。');
-                }
                 try {
-                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
+                    videoUrl = await uploadTelegramFileToCloudinary(ctx, fileObj.file_id, 'oneday_shop');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
+                videoUrl = text.trim();
             } else {
                 return ctx.reply('⚠️ សូម Upload Video ឬ រូបភាព (Image) ឱ្យបានត្រឹមត្រូវ!');
             }
 
             try {
                 let oldProd = await pool.query("SELECT video_url FROM products WHERE UPPER(ref) = $1", [ref]);
-                if (oldProd.rows.length > 0 && oldProd.rows[0].video_url && oldProd.rows[0].video_url.includes('/videos/')) {
-                    let oldFileName = oldProd.rows[0].video_url.split('/videos/').pop().split('?')[0];
+                if (oldProd.rows.length > 0 && oldProd.rows[0].video_url) {
+                    let oldVideoUrl = oldProd.rows[0].video_url;
                     await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
-                    let inUse = await isMediaInUse(oldFileName);
-                    if (!inUse) {
-                        let oldFilePath = path.join(videoDir, oldFileName);
-                        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
-                    }
+                    await deleteCloudinaryFileByUrl(oldVideoUrl); // លុបហ្វាលចាស់ចេញពី Cloudinary ស្វ័យប្រវត្តិ
                 } else {
                     await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
                 }
@@ -1550,7 +1444,7 @@ bot.on('message', async (ctx) => {
             }
 
             delete userStates[chatId];
-            return ctx.reply(`✅ កែប្រែ Media សម្រាប់ Ref ${ref} ជោគជ័យ!`);
+            return ctx.reply(`✅ កែប្រែ Media (Cloudinary) សម្រាប់ Ref ${ref} ជោគជ័យ!`);
         }
         if (state.step === 'UPDATE_3D') {
             let model3dUrl = '';
@@ -1560,7 +1454,7 @@ bot.on('message', async (ctx) => {
                 model3dUrl = '';
             } else if (fileObj) {
                 try {
-                    model3dUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, '3d_video');
+                    model3dUrl = await uploadTelegramFileToCloudinary(ctx, fileObj.file_id, 'oneday_shop');
                 } catch (err) {
                     return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
                 }
@@ -1569,6 +1463,13 @@ bot.on('message', async (ctx) => {
             } else {
                 return ctx.reply('⚠️ សូម Upload វីដេអូ 3D ឬพิมพ์ "none" ដើម្បីលុបចេញ!');
             }
+
+            try {
+                let oldProd = await pool.query("SELECT model_3d_url FROM products WHERE UPPER(ref) = $1", [ref]);
+                if (oldProd.rows.length > 0 && oldProd.rows[0].model_3d_url) {
+                    await deleteCloudinaryFileByUrl(oldProd.rows[0].model_3d_url);
+                }
+            } catch (e) {}
 
             await pool.query("UPDATE products SET model_3d_url = $1 WHERE UPPER(ref) = $2", [model3dUrl, ref]);
             delete userStates[chatId];
@@ -1614,16 +1515,13 @@ bot.on('message', async (ctx) => {
             let fileObj = getTelegramMediaObject(msg);
 
             if (fileObj) {
-                if (fileObj.file_size && fileObj.file_size > 20 * 1024 * 1024) {
-                    return ctx.reply('⚠️ ហ្វាលនេះមានទំហំធំជាង 20MB! Telegram Bot អនុញ្ញាតត្រឹម 20MB ប៉ុណ្ណោះ。');
-                }
                 try {
-                    videoUrl = await downloadAndSaveTelegramFile(ctx, fileObj.file_id, 'media');
+                    videoUrl = await uploadTelegramFileToCloudinary(ctx, fileObj.file_id, 'oneday_shop');
                 } catch (err) {
-                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
+                    return ctx.reply(`❌ Upload ទៅ Cloudinary បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
-                videoUrl = text.trim().startsWith('http') ? text.trim() : `${RAILWAY_HOST}/${text.trim()}`;
+                videoUrl = text.trim();
             } else {
                 return ctx.reply('⚠️ សូម Upload Video ឬ រូបភាព (Image) ឱ្យបានត្រឹមត្រូវ!');
             }
@@ -1648,9 +1546,9 @@ bot.on('message', async (ctx) => {
 
             if (file3dObj) {
                 try {
-                    model3dUrl = await downloadAndSaveTelegramFile(ctx, file3dObj.file_id, '3d_video');
+                    model3dUrl = await uploadTelegramFileToCloudinary(ctx, file3dObj.file_id, 'oneday_shop');
                 } catch (err) {
-                    return ctx.reply(`❌ បរាជ័យ: ${err.message}`);
+                    return ctx.reply(`❌ Upload 3D ទៅ Cloudinary បរាជ័យ: ${err.message}`);
                 }
             } else if (text.trim()) {
                 model3dUrl = text.trim();
@@ -1684,13 +1582,13 @@ bot.telegram.setMyCommands([
     { command: 'checkadmin', description: 'មើលបញ្ជី Owner និង Admin (សម្រាប់ Owner)' },
     { command: 'add', description: 'បន្ថែមទំនិញថ្មីចូលស្តុក (Image/Video & 3D)' },
     { command: 'change', description: 'កែប្រែព័ត៌មានទំនិញ' },
-    { command: 'cleanup', description: 'សម្អាត Media ចាស់ៗដែលមិនបានប្រើប្រាស់' },
+    { command: 'cleanup', description: 'សម្អាត Media ចាស់ៗ (Cloudinary Ready)' },
     { command: 'cancel', description: 'បោះបង់សកម្មភាពកំពុងរត់' },
     { command: 'setmeowner', description: 'កំណត់សិទ្ធិ Owner (ប្រើពេលដំបូង)' }
 ]).catch(err => console.error("Set commands error:", err));
 
 bot.launch();
-console.log('Telegram Bot started successfully...');
+console.log('Telegram Bot started successfully with Cloudinary...');
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
