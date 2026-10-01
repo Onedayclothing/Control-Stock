@@ -9,6 +9,14 @@ const translate = require('translate-google'); // 📦 Library សម្រា�
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ✅ បិទ cache លើ API ទាំងអស់ ដើម្បីឱ្យស្តុកថ្មីបង្ហាញភ្លាម
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    next();
+});
+
 app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
 // ☁️ កំណត់តម្លៃ Cloudinary ជាមួយ API Key ដែលបានកែតម្រូវត្រឹមត្រូវ (មានលេខ 7 ពីរដង)
@@ -471,7 +479,7 @@ bot.start(async (ctx) => {
 bot.command('stats', async (ctx) => {
     const chatId = ctx.chat.id;
     const username = ctx.from.username || '';
-    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
+    if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️️ គ្មានសិទ្ធិ!');
 
     try {
         let prodCount = await pool.query("SELECT COUNT(*) FROM products");
@@ -672,7 +680,7 @@ bot.action('web_cover_add', async (ctx) => {
     userStates[chatId] = { action: 'WEBSITE', step: 'WAITING_ADD_COVER' };
     try {
         await ctx.answerCbQuery();
-        await ctx.editMessageText('🎬/🖼 **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
+        await ctx.editMessageText('🎬/🖼️ **សូម Upload រូបភាព (Image) ឬ Video** សម្រាប់បន្ថែមចូលទៅក្នុង Cover Slider៖');
     } catch (err) {
         console.error("Error in web_cover_add:", err);
     }
@@ -981,7 +989,7 @@ bot.command('change', async (ctx) => {
     if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
 
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
-    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
+    ctx.reply('✏️️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
