@@ -13,9 +13,9 @@ app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
 // ☁️ កំណត់តម្លៃ Cloudinary ដោយบังคับ (Force) ប្រើ String ដាច់ខាត
 cloudinary.config({
-    cloud_name: String('r7l6lhkr'),
-    api_key: String('25977257922487'),
-    api_secret: String('s6A8nNZLtl3hPYYgyqr_IF_eB_Y')
+    cloud_name: 'r7l6lhkr',
+    api_key: '25977257922487',
+    api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
 });
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
@@ -89,12 +89,15 @@ async function autoTranslate(text) {
     }
 }
 
-// ☁️ Helper Function: ទាញយក File ពី Telegram រួច Upload ចូល Cloudinary ដោយផ្ទាល់
+// ☁️ Helper Function: ទាញយក File ពី Telegram រួច Upload ចូល Cloudinary ដោយផ្ទាល់ (បញ្ចូលសោរការពារដាច់ខាត)
 async function uploadTelegramFileToCloudinary(ctx, fileId, folderName = 'oneday_shop') {
     let linkObj = await ctx.telegram.getFileLink(fileId);
     let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
     
     let uploadResult = await cloudinary.uploader.upload(fileUrl, {
+        cloud_name: 'r7l6lhkr',
+        api_key: '25977257922487',
+        api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y',
         folder: folderName,
         resource_type: 'auto'
     });
@@ -112,7 +115,11 @@ async function deleteCloudinaryFileByUrl(url) {
         if (!publicId) {
             publicId = publicIdWithFolder;
         }
-        await cloudinary.uploader.destroy(publicId);
+        await cloudinary.uploader.destroy(publicId, {
+            cloud_name: 'r7l6lhkr',
+            api_key: '25977257922487',
+            api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
+        });
         console.log("Deleted old file from Cloudinary:", publicId);
     } catch (err) {
         console.error("Failed to delete from Cloudinary:", err);
@@ -644,7 +651,7 @@ bot.action('web_back_menu', async (ctx) => {
 bot.action('web_edit_cover', async (ctx) => {
     try {
         await ctx.answerCbQuery();
-        await ctx.editMessageText('🎬/🖼️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
+        await ctx.editMessageText('🎬/🖼️️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
@@ -974,7 +981,7 @@ bot.command('change', async (ctx) => {
     if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
 
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
-    ctx.reply('✏️️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
+    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
@@ -1245,7 +1252,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     let state = userStates[chatId];
 
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`🏷️️ ប្រភេទ: ${type}`);
+    await ctx.editMessageText(`🏷️ ប្រភេទ: ${type}`);
 
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
