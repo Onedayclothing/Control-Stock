@@ -3,6 +3,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { Telegraf } = require('telegraf');
 const cloudinary = require('cloudinary').v2;
+const path = require('path');
 const translate = require('translate-google'); // 📦 Library សម្រាប់បកប្រែស្វ័យប្រវត្តិ
 
 const app = express();
@@ -10,16 +11,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
-// ☁️ កំណត់តម្លៃ Cloudinary ជាមួយ Environment Variables របស់ Railway
+// ☁️ កំណត់តម្លៃ Cloudinary ដោយដាក់តម្លៃផ្ទាល់ជា String ដើម្បីដោះស្រាយបញ្ហា Invalid api_key
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
+    cloud_name: 'r7l6lhkr',
+    api_key: '25977257922487',
+    api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
 });
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html')); // note: require path module if used, let's include path
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // 🔒 ផ្លូវទី ២: សម្រាប់ Telegram Mini App (Admin គ្រប់គ្រងស្តុក)
@@ -109,7 +110,7 @@ async function deleteCloudinaryFileByUrl(url) {
         let publicIdWithFolder = parts.slice(parts.indexOf('upload') + 2, parts.length).join('/');
         let publicId = publicIdWithFolder.substring(0, publicIdWithFolder.lastIndexOf('.'));
         if (!publicId) {
-            publicId = publicIdWithFolder; // fallback if no extension
+            publicId = publicIdWithFolder;
         }
         await cloudinary.uploader.destroy(publicId);
         console.log("Deleted old file from Cloudinary:", publicId);
@@ -648,7 +649,7 @@ bot.action('web_edit_cover', async (ctx) => {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
-                    [{ text: '🗑️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
+                    [{ text: '🗑️️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
                     [{ text: '🔥 លុប Cover ចាស់ៗទាំងអស់ (Delete All)', callback_data: 'web_cover_delete_all' }],
                     [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
                 ]
@@ -1435,7 +1436,7 @@ bot.on('message', async (ctx) => {
                 if (oldProd.rows.length > 0 && oldProd.rows[0].video_url) {
                     let oldVideoUrl = oldProd.rows[0].video_url;
                     await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
-                    await deleteCloudinaryFileByUrl(oldVideoUrl); // លុបហ្វាលចាស់ចេញពី Cloudinary ស្វ័យប្រវត្តិ
+                    await deleteCloudinaryFileByUrl(oldVideoUrl);
                 } else {
                     await pool.query("UPDATE products SET video_url = $1 WHERE UPPER(ref) = $2", [videoUrl, ref]);
                 }
