@@ -946,7 +946,7 @@
                 const ctrl = new AbortController();
                 const timer = setTimeout(() => ctrl.abort(), timeoutMs);
                 try {
-                    const r = await fetch(url, { signal: ctrl.signal });
+                    const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
                     clearTimeout(timer);
                     if (r.ok) return r;
                     lastErr = new Error('HTTP ' + r.status);
@@ -1620,7 +1620,7 @@
             loadDynamicCovers();
             loadDynamicProducts();
 
-            setInterval(backgroundSyncStock, 30000); 
+            setInterval(backgroundSyncStock, 10000); 
             setInterval(loadWebsiteSettings, 60000);  
         });
 
@@ -1628,6 +1628,7 @@
         document.addEventListener("visibilitychange", function() {
             if (document.visibilityState === "visible") {
                 if (productsList.length === 0) retryLoadProducts();
+                else backgroundSyncStock();
                 if (isOrderPlaced) {
                     closeModal('checkoutModal');
                     closeModal('cartModal');
