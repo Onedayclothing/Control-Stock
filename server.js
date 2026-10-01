@@ -11,11 +11,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
-// ☁️ កំណត់តម្លៃ Cloudinary ដោយដាក់តម្លៃផ្ទាល់ជា String ដើម្បីដោះស្រាយបញ្ហា Invalid api_key
+// ☁️ កំណត់តម្លៃ Cloudinary ដោយบังคับ (Force) ប្រើ String ដាច់ខាត
 cloudinary.config({
-    cloud_name: 'r7l6lhkr',
-    api_key: '25977257922487',
-    api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
+    cloud_name: String('r7l6lhkr'),
+    api_key: String('25977257922487'),
+    api_secret: String('s6A8nNZLtl3hPYYgyqr_IF_eB_Y')
 });
 
 // 🌐 ផ្លូវទី ១: សម្រាប់ Website ធម្មតា (អតិថិជនចូលមើល និងកុម្មង់ទំនិញ)
@@ -649,7 +649,7 @@ bot.action('web_edit_cover', async (ctx) => {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '➕ បន្ថែម Cover ថ្មី (Add Cover)', callback_data: 'web_cover_add' }],
-                    [{ text: '🗑️️ លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
+                    [{ text: '🗑 លុប Cover តាមលេខរៀង (Delete Cover)', callback_data: 'web_cover_delete_list' }],
                     [{ text: '🔥 លុប Cover ចាស់ៗទាំងអស់ (Delete All)', callback_data: 'web_cover_delete_all' }],
                     [{ text: '🔙 ត្រឡប់ក្រោយ', callback_data: 'web_back_menu' }]
                 ]
@@ -974,7 +974,7 @@ bot.command('change', async (ctx) => {
     if (!await isAdminUser(chatId, username)) return ctx.reply('⛔️ គ្មានសិទ្ធិ!');
 
     userStates[chatId] = { action: 'CHANGE', step: 'GET_REF' };
-    ctx.reply('✏️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
+    ctx.reply('✏️️ សូមសរសេរបញ្ចូលលេខ Ref របស់ទំនិញដែលចង់កែប្រែ:');
 });
 
 bot.hears(/^\/change(.+)/i, async (ctx) => {
@@ -1245,7 +1245,7 @@ bot.action(/^type_(.+)$/, async (ctx) => {
     let state = userStates[chatId];
 
     await ctx.answerCbQuery();
-    await ctx.editMessageText(`🏷️ ប្រភេទ: ${type}`);
+    await ctx.editMessageText(`🏷️️ ប្រភេទ: ${type}`);
 
     try {
         let cleanRef = String(state.data.ref).trim().toUpperCase();
