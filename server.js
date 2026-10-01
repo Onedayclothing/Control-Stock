@@ -11,10 +11,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.')); // Serve ហ្វាល Static ធម្មតា
 
-// ☁️ កំណត់តម្លៃ Cloudinary ដោយบังคับ (Force) ប្រើ String ដាច់ខាត
+// ☁️ កំណត់តម្លៃ Cloudinary ជាមួយ API Key ដែលបានកែតម្រូវត្រឹមត្រូវ (មានលេខ 7 ពីរដង)
 cloudinary.config({
     cloud_name: 'r7l6lhkr',
-    api_key: '25977257922487',
+    api_key: '259777257922487',
     api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
 });
 
@@ -89,14 +89,14 @@ async function autoTranslate(text) {
     }
 }
 
-// ☁️ Helper Function: ទាញយក File ពី Telegram រួច Upload ចូល Cloudinary ដោយផ្ទាល់ (បញ្ចូលសោរការពារដាច់ខាត)
+// ☁️ Helper Function: ទាញយក File ពី Telegram រួច Upload ចូល Cloudinary ដោយផ្ទាល់ (ជាមួយ API Key ត្រូវគ្នា)
 async function uploadTelegramFileToCloudinary(ctx, fileId, folderName = 'oneday_shop') {
     let linkObj = await ctx.telegram.getFileLink(fileId);
     let fileUrl = typeof linkObj === 'string' ? linkObj : (linkObj.href || linkObj.toString());
     
     let uploadResult = await cloudinary.uploader.upload(fileUrl, {
         cloud_name: 'r7l6lhkr',
-        api_key: '25977257922487',
+        api_key: '259777257922487',
         api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y',
         folder: folderName,
         resource_type: 'auto'
@@ -117,7 +117,7 @@ async function deleteCloudinaryFileByUrl(url) {
         }
         await cloudinary.uploader.destroy(publicId, {
             cloud_name: 'r7l6lhkr',
-            api_key: '25977257922487',
+            api_key: '259777257922487',
             api_secret: 's6A8nNZLtl3hPYYgyqr_IF_eB_Y'
         });
         console.log("Deleted old file from Cloudinary:", publicId);
@@ -651,7 +651,7 @@ bot.action('web_back_menu', async (ctx) => {
 bot.action('web_edit_cover', async (ctx) => {
     try {
         await ctx.answerCbQuery();
-        await ctx.editMessageText('🎬/🖼️️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
+        await ctx.editMessageText('🎬/🖼️ **តើបងចង់ធ្វើអ្វីជាមួយ Cover Slider?**', {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
