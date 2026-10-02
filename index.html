@@ -155,30 +155,37 @@
 
         .nav-right { display: flex; align-items: center; gap: 8px; }
 
+        /* ✨ Enhanced & Sleek Navigation Buttons */
         .guide-top-btn { 
-            background: var(--accent-light); 
+            background: var(--card-bg); 
             border: 1px solid var(--border-color); 
             color: var(--primary); 
-            padding: 0 10px; 
-            height: 32px;
-            border-radius: 16px; 
+            padding: 0 12px; 
+            height: 34px;
+            border-radius: 17px; 
             font-size: 11px; 
-            font-weight: 600; 
+            font-weight: 700; 
             font-family: var(--nav-font);
             cursor: pointer; 
             display: flex; 
             align-items: center; 
-            gap: 4px; 
+            gap: 6px; 
             white-space: nowrap;
             line-height: 1;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .guide-top-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
         }
 
         .theme-toggle-btn { 
-            background: var(--accent-light); 
+            background: var(--card-bg); 
             border: 1px solid var(--border-color); 
             color: var(--primary); 
-            width: 32px; 
-            height: 32px; 
+            width: 34px; 
+            height: 34px; 
             border-radius: 50%; 
             cursor: pointer; 
             display: flex; 
@@ -186,29 +193,45 @@
             justify-content: center; 
             flex-shrink: 0;
             padding: 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .theme-toggle-btn:hover {
+            border-color: var(--accent);
         }
 
+        /* 🌐 Clean Flag-Only Language Selector */
         .lang-select-wrapper { position: relative; display: flex; align-items: center; }
-        .lang-flag-img { position: absolute; left: 8px; width: 15px !important; height: 11px !important; pointer-events: none; z-index: 2; object-fit: cover !important; border-radius: 2px; box-shadow: 0 0 1px rgba(0,0,0,0.3); }
+        .lang-flag-img { position: absolute; left: 9px; width: 16px !important; height: 12px !important; pointer-events: none; z-index: 2; object-fit: cover !important; border-radius: 2px; box-shadow: 0 0 1px rgba(0,0,0,0.3); }
 
         .lang-select { 
-            background: var(--accent-light); 
+            background: var(--card-bg); 
             border: 1px solid var(--border-color); 
-            color: var(--primary); 
-            padding: 0 16px 0 28px; 
-            height: 32px;
-            border-radius: 16px; 
-            font-size: 11px; 
-            font-weight: 600; 
-            font-family: var(--nav-font);
+            color: transparent; 
+            width: 52px;
+            padding: 0 6px 0 28px; 
+            height: 34px;
+            border-radius: 17px; 
+            font-size: 0px; 
             cursor: pointer; 
             outline: none; 
             -webkit-appearance: none;
             appearance: none;
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%230284c7%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 6px center;
+            background-position: right 8px center;
             background-size: 7px auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .lang-select:hover {
+            border-color: var(--accent);
+        }
+        .lang-select option {
+            color: var(--primary);
+            background: var(--card-bg);
+            font-size: 12px;
+            font-family: var(--nav-font);
         }
 
         /* 🔘 ស្ទីលប៊ូតុង View 3D អណ្តែតលើរូបភាព */
@@ -476,33 +499,45 @@
         .bar-buttons { display: flex; gap: 6px; }
         
         .btn-cart-view { 
-            background: var(--accent-light); 
+            background: var(--card-bg); 
             color: var(--primary); 
             border: 1px solid var(--border-color); 
-            padding: 7px 10px; 
-            border-radius: 9px; 
+            padding: 8px 12px; 
+            border-radius: 10px; 
             font-weight: 800; 
             font-size: 11px; 
             cursor: pointer; 
             display: flex; 
             align-items: center; 
-            gap: 4px; 
+            gap: 6px; 
             white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
         }
+        .btn-cart-view:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         .btn-telegram { 
             background: var(--accent); 
             color: white; 
             border: none; 
-            padding: 7px 12px; 
-            border-radius: 9px; 
+            padding: 8px 14px; 
+            border-radius: 10px; 
             font-weight: 800; 
             font-size: 11px; 
             cursor: pointer; 
-            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); 
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25); 
             display: flex; 
             align-items: center; 
-            gap: 4px; 
+            gap: 6px; 
             white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        .btn-telegram:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
         }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); z-index: 200; display: none; justify-content: flex-end; flex-direction: column; backdrop-filter: blur(4px); pointer-events: none; opacity: 0; transition: opacity 0.2s ease; }
